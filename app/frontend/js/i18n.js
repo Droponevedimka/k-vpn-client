@@ -1,0 +1,179 @@
+// Kampus VPN - i18n (Internationalization) Module
+
+const i18n = {
+    ru: {
+        // Status
+        connected: 'Подключено',
+        disconnected: 'Отключено',
+        connecting: 'Подключение...',
+        disconnecting: 'Отключение...',
+        // Badges
+        addVpn: '⚡ Добавить VPN',
+        proxies: 'прокси',
+        workNetworks: '🏢 Рабочие сети',
+        // Profile
+        profile: 'Профиль',
+        profiles: 'Профили',
+        selectProfile: 'Выберите или создайте профиль подключения',
+        createProfile: '➕ Создать профиль',
+        newProfile: '➕ Новый профиль',
+        editProfile: '✏️ Редактировать профиль',
+        profileName: 'Название профиля',
+        default: 'По умолчанию',
+        noSubscription: 'Нет подписки',
+        cantDeleteDefault: 'Нельзя удалить профиль по умолчанию',
+        deleteProfile: 'Удаление профиля',
+        deleteProfileConfirm: 'Удалить профиль "{name}"? Все настройки профиля будут потеряны.',
+        profileCreated: 'Профиль создан',
+        profileUpdated: 'Профиль обновлён',
+        profileDeleted: 'Профиль удалён',
+        profileActivated: 'Профиль активирован',
+        disconnectFirst: 'Отключите VPN перед сменой профиля',
+        enterProfileName: 'Введите название профиля',
+        // Settings
+        settings: 'Настройки',
+        general: 'Общие',
+        autoStart: 'Автозапуск',
+        autoStartDesc: 'Запускать при входе в систему',
+        notifications: 'Уведомления',
+        notificationsDesc: 'Показывать уведомления о подключении',
+        logging: 'Логирование sing-box',
+        loggingDesc: 'Записывать логи в файл',
+        subscription: 'Подписка',
+        autoUpdate: 'Авто-обновление',
+        autoUpdateDesc: 'Обновлять подписку автоматически',
+        updates: 'Обновления',
+        checkUpdates: 'Проверять обновления',
+        checkUpdatesDesc: 'Уведомлять о новых версиях',
+        appearance: 'Внешний вид',
+        theme: 'Тема',
+        themeDesc: 'Оформление приложения',
+        themeDark: 'Тёмная',
+        themeLight: 'Светлая',
+        themeSystem: 'Системная',
+        language: 'Язык',
+        languageDesc: 'Язык интерфейса',
+        configuration: 'Конфигурация',
+        templateEditor: 'Редактор шаблона',
+        // Actions
+        cancel: 'Отмена',
+        close: 'Закрыть',
+        save: 'Сохранить',
+        create: 'Создать',
+        delete: 'Удалить',
+        edit: 'Редактировать',
+        folder: 'Папка',
+        settingsSaved: 'Настройки сохранены',
+        // Errors
+        error: 'Ошибка',
+        warning: 'Предупреждение',
+        // VPN
+        vpnConnected: 'VPN подключен',
+        vpnDisconnected: 'VPN отключен',
+        disconnectVpnFirst: 'Сначала отключите VPN',
+        secureConnection: 'Безопасное подключение',
+    },
+    en: {
+        // Status
+        connected: 'Connected',
+        disconnected: 'Disconnected',
+        connecting: 'Connecting...',
+        disconnecting: 'Disconnecting...',
+        // Badges
+        addVpn: '⚡ Add VPN',
+        proxies: 'proxies',
+        workNetworks: '🏢 Work networks',
+        // Profile
+        profile: 'Profile',
+        profiles: 'Profiles',
+        selectProfile: 'Select or create a connection profile',
+        createProfile: '➕ Create profile',
+        newProfile: '➕ New profile',
+        editProfile: '✏️ Edit profile',
+        profileName: 'Profile name',
+        default: 'Default',
+        noSubscription: 'No subscription',
+        cantDeleteDefault: 'Cannot delete the default profile',
+        deleteProfile: 'Delete profile',
+        deleteProfileConfirm: 'Delete profile "{name}"? All profile settings will be lost.',
+        profileCreated: 'Profile created',
+        profileUpdated: 'Profile updated',
+        profileDeleted: 'Profile deleted',
+        profileActivated: 'Profile activated',
+        disconnectFirst: 'Disconnect VPN before switching profile',
+        enterProfileName: 'Enter profile name',
+        // Settings
+        settings: 'Settings',
+        general: 'General',
+        autoStart: 'Auto-start',
+        autoStartDesc: 'Launch at system startup',
+        notifications: 'Notifications',
+        notificationsDesc: 'Show connection notifications',
+        logging: 'sing-box logging',
+        loggingDesc: 'Write logs to file',
+        subscription: 'Subscription',
+        autoUpdate: 'Auto-update',
+        autoUpdateDesc: 'Update subscription automatically',
+        updates: 'Updates',
+        checkUpdates: 'Check for updates',
+        checkUpdatesDesc: 'Notify about new versions',
+        appearance: 'Appearance',
+        theme: 'Theme',
+        themeDesc: 'App theme',
+        themeDark: 'Dark',
+        themeLight: 'Light',
+        themeSystem: 'System',
+        language: 'Language',
+        languageDesc: 'Interface language',
+        configuration: 'Configuration',
+        templateEditor: 'Template editor',
+        // Actions
+        cancel: 'Cancel',
+        close: 'Close',
+        save: 'Save',
+        create: 'Create',
+        delete: 'Delete',
+        edit: 'Edit',
+        folder: 'Folder',
+        settingsSaved: 'Settings saved',
+        // Errors
+        error: 'Error',
+        warning: 'Warning',
+        // VPN
+        vpnConnected: 'VPN connected',
+        vpnDisconnected: 'VPN disconnected',
+        disconnectVpnFirst: 'Disconnect VPN first',
+        secureConnection: 'Secure connection',
+    }
+};
+
+let currentLang = 'ru';
+
+// Get translation
+function t(key, params = {}) {
+    let text = i18n[currentLang][key] || i18n['ru'][key] || key;
+    // Replace placeholders like {name}
+    Object.keys(params).forEach(k => {
+        text = text.replace(`{${k}}`, params[k]);
+    });
+    return text;
+}
+
+// Apply language to UI
+function applyLanguage(lang) {
+    currentLang = lang;
+    document.documentElement.setAttribute('lang', lang);
+    updateUITexts();
+}
+
+// Update all UI texts
+function updateUITexts() {
+    // Status will update on next status update
+    // Subtitle
+    const subtitle = document.getElementById('activeProfileName');
+    if (subtitle && currentProfiles && currentProfiles.length > 0) {
+        updateActiveProfileDisplay();
+    } else if (subtitle) {
+        subtitle.textContent = t('secureConnection');
+    }
+}

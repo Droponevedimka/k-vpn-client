@@ -1,0 +1,146 @@
+/* Kampus VPN - Component Styles */
+
+/* Enhanced logo with glow */
+.logo {
+    width: 70px; height: 70px; margin-bottom: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    border-radius: 18px; display: flex; align-items: center; justify-content: center;
+    margin-left: auto; margin-right: auto;
+    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4), 0 0 60px rgba(118, 75, 162, 0.2);
+    animation: logoFloat 3s ease-in-out infinite;
+    position: relative;
+    cursor: pointer;
+}
+.logo::after {
+    content: '';
+    position: absolute;
+    top: -3px; left: -3px; right: -3px; bottom: -3px;
+    background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #667eea);
+    border-radius: 20px;
+    z-index: -1;
+    filter: blur(10px);
+    opacity: 0.5;
+    animation: logoGlow 3s ease-in-out infinite alternate;
+}
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+@keyframes logoGlow {
+    0% { opacity: 0.3; }
+    100% { opacity: 0.6; }
+}
+.logo svg { width: 40px; height: 40px; fill: white; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+.logo:hover { transform: scale(1.05); }
+.logo.clickable::after { opacity: 0.7; }
+.logo.disabled { 
+    opacity: 0.6; 
+    cursor: not-allowed; 
+    pointer-events: none;
+}
+.logo.disabled:hover { transform: none; }
+.logo.disabled::after { opacity: 0.3; }
+
+/* Enhanced Power Button */
+.power-button {
+    width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(145deg, #252d45, #1a1f32);
+    box-shadow: 
+        12px 12px 30px rgba(0,0,0,0.5), 
+        -8px -8px 25px rgba(255,255,255,0.03),
+        inset 0 0 0 3px rgba(255,255,255,0.05);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 15px;
+    position: relative;
+    overflow: hidden;
+}
+.power-button::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 100%; height: 100%;
+    background: radial-gradient(circle, rgba(102,126,234,0.1) 0%, transparent 70%);
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.5s;
+}
+.power-button:hover::before { transform: translate(-50%, -50%) scale(1.5); }
+.power-button:hover { transform: scale(1.05); }
+.power-button:active { transform: scale(0.95); }
+.power-button.active {
+    background: linear-gradient(145deg, #1a4d2e, #0d2818);
+    box-shadow: 
+        12px 12px 30px rgba(0,0,0,0.5), 
+        -8px -8px 25px rgba(255,255,255,0.03),
+        inset 0 0 0 3px rgba(34,197,94,0.4), 
+        0 0 50px rgba(34,197,94,0.3),
+        0 0 100px rgba(34,197,94,0.1);
+}
+.power-button.active::before {
+    background: radial-gradient(circle, rgba(34,197,94,0.2) 0%, transparent 70%);
+    transform: translate(-50%, -50%) scale(1.5);
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+.power-button svg { 
+    width: 50px; height: 50px; stroke: #4a5568; stroke-width: 2; fill: none; 
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+    position: relative; z-index: 1;
+}
+.power-button.active svg { 
+    stroke: #22c55e; 
+    filter: drop-shadow(0 0 15px rgba(34,197,94,0.6)); 
+}
+.power-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+
+/* Badges container */
+.badges { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-bottom: 12px; }
+.badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(102, 126, 234, 0.15); 
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    backdrop-filter: blur(10px);
+    padding: 6px 12px; border-radius: 20px; font-size: 11px; color: #a5b4fc;
+    cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative;
+}
+.badge:hover { 
+    background: rgba(102, 126, 234, 0.25); 
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+}
+.badge.no-sub { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+.badge.no-sub:hover { background: rgba(239, 68, 68, 0.2); box-shadow: 0 5px 20px rgba(239, 68, 68, 0.2); }
+.badge.wg-badge { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); color: #86efac; }
+.badge.wg-badge:hover { background: rgba(34, 197, 94, 0.2); box-shadow: 0 5px 20px rgba(34, 197, 94, 0.2); }
+.badge.wg-badge.no-wg { background: rgba(100, 100, 100, 0.1); border-color: rgba(100, 100, 100, 0.3); color: #9ca3af; }
+.badge .count { background: rgba(34, 197, 94, 0.2); padding: 2px 6px; border-radius: 10px; color: #86efac; }
+.badge.disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+/* Tooltip */
+.tooltip {
+    position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.9); color: #fff; padding: 6px 10px; border-radius: 6px;
+    font-size: 10px; white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s; margin-bottom: 5px;
+}
+.badge.disabled:hover .tooltip { opacity: 1; }
+
+/* Footer */
+.footer { 
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 8px; justify-content: center; 
+    background: rgba(15,12,41,0.95); backdrop-filter: blur(10px);
+    padding: 10px 12px; 
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+.footer-btn { 
+    background: none; border: none; color: #6b7280; font-size: 10px; cursor: pointer; 
+    padding: 6px 10px; border-radius: 15px; transition: all 0.3s;
+    min-width: auto; text-align: center;
+}
+.footer-btn:hover { color: #a5b4fc; background: rgba(102,126,234,0.15); }
+.footer-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+.footer-btn.disabled:hover { color: #6b7280; background: none; }

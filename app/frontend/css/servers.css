@@ -1,0 +1,59 @@
+/* Kampus VPN - Servers Panel Styles */
+
+/* Servers Panel - Glass morphism */
+.servers-panel {
+    background: rgba(100,255,218,0.03); 
+    border: 1px solid rgba(100,255,218,0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 12px; padding: 10px; margin: 12px 0; max-width: 100%;
+}
+.servers-panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(100,255,218,0.1);
+}
+.servers-panel-title { font-size: 10px; color: #8892b0; text-transform: uppercase; letter-spacing: 1px; }
+.servers-list { display: flex; flex-direction: column; gap: 4px; }
+.server-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; background: rgba(0,0,0,0.2); border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 2px solid transparent;
+}
+.server-item:hover { background: rgba(0,0,0,0.3); transform: translateX(3px); }
+.server-item.active { 
+    background: rgba(100,255,218,0.1); 
+    border-left-color: #64ffda; 
+    box-shadow: 0 0 20px rgba(100,255,218,0.1);
+}
+.server-item.internal { background: rgba(102,126,234,0.08); border-left-color: rgba(102,126,234,0.5); }
+.server-item.internal.active { background: rgba(102,126,234,0.15); border-left-color: #667eea; }
+.server-name { font-size: 11px; color: #ccd6f6; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.server-ping { font-size: 10px; font-weight: 600; min-width: 50px; text-align: right; }
+.server-ping.good { color: #64ffda; }
+.server-ping.medium { color: #ffd93d; }
+.server-ping.bad { color: #ff6b6b; }
+.server-ping.timeout { color: #4a5568; }
+.server-ping.ping-active { color: #667eea; }
+.server-ping.ping-timeout { color: #4a5568; }
+.server-ping.loading { color: #8892b0; animation: pulse 1s infinite; }
+.show-all-btn {
+    width: 100%; margin-top: 6px; background: rgba(100,255,218,0.05);
+    border: 1px dashed rgba(100,255,218,0.2); color: #64ffda;
+    padding: 6px; border-radius: 8px; font-size: 10px; cursor: pointer;
+    transition: all 0.3s;
+}
+.show-all-btn:hover { 
+    background: rgba(100,255,218,0.1); 
+    border-style: solid; 
+    transform: translateY(-2px);
+}
+
+/* Servers Modal */
+.servers-modal { max-height: 80vh; }
+.servers-modal .modal { width: 380px; max-width: 95%; }
+.servers-modal-list {
+    max-height: 350px; overflow-y: auto; margin: 12px 0;
+    background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px;
+}
+.servers-modal-list .server-item { margin-bottom: 4px; }
+.servers-modal-list .server-item:last-child { margin-bottom: 0; }

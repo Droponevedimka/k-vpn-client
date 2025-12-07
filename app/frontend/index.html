@@ -1,0 +1,3128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kampus VPN</title>
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%234a5568'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E">
+    <!-- QR Code Scanner Library -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        /* CSS Variables for theming */
+        :root {
+            --bg-primary: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            --bg-secondary: rgba(15,12,41,0.95);
+            --bg-modal: rgba(26, 31, 50, 0.98);
+            --text-primary: #fff;
+            --text-secondary: #8892b0;
+            --text-muted: #4a5568;
+            --accent-primary: #667eea;
+            --accent-secondary: #764ba2;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --border-color: rgba(255,255,255,0.1);
+            --card-bg: rgba(0,0,0,0.2);
+            --button-bg: linear-gradient(145deg, #252d45, #1a1f32);
+        }
+        
+        [data-theme="light"] {
+            --bg-primary: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 50%, #e8eaf6 100%);
+            --bg-secondary: rgba(255,255,255,0.95);
+            --bg-modal: rgba(255,255,255,0.98);
+            --text-primary: #1a1a2e;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --border-color: rgba(0,0,0,0.1);
+            --card-bg: rgba(0,0,0,0.05);
+            --button-bg: linear-gradient(145deg, #f0f0f0, #e0e0e0);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        /* Animated background */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Animated particles background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.3), transparent),
+                radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.2), transparent),
+                radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.3), transparent),
+                radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.2), transparent),
+                radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.4), transparent);
+            background-size: 200px 200px;
+            animation: particleMove 20s linear infinite;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+        
+        @keyframes particleMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 200px 200px; }
+        }
+        
+        .container { text-align: center; padding: 15px; padding-bottom: 55px; position: relative; z-index: 1; }
+        
+        /* Enhanced logo with glow */
+        .logo {
+            width: 70px; height: 70px; margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            border-radius: 18px; display: flex; align-items: center; justify-content: center;
+            margin-left: auto; margin-right: auto;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4), 0 0 60px rgba(118, 75, 162, 0.2);
+            animation: logoFloat 3s ease-in-out infinite;
+            position: relative;
+        }
+        .logo::after {
+            content: '';
+            position: absolute;
+            top: -3px; left: -3px; right: -3px; bottom: -3px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #667eea);
+            border-radius: 20px;
+            z-index: -1;
+            filter: blur(10px);
+            opacity: 0.5;
+            animation: logoGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        @keyframes logoGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.6; }
+        }
+        .logo svg { width: 40px; height: 40px; fill: white; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        
+        h1 { 
+            font-size: 22px; font-weight: 700; margin-bottom: 6px; 
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle { font-size: 12px; color: #8892b0; margin-bottom: 12px; letter-spacing: 0.5px; }
+
+        /* Badges container */
+        .badges { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-bottom: 12px; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(102, 126, 234, 0.15); 
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 6px 12px; border-radius: 20px; font-size: 11px; color: #a5b4fc;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative;
+        }
+        .badge:hover { 
+            background: rgba(102, 126, 234, 0.25); 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+        }
+        .badge.no-sub { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+        .badge.no-sub:hover { background: rgba(239, 68, 68, 0.2); box-shadow: 0 5px 20px rgba(239, 68, 68, 0.2); }
+        .badge.wg-badge { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); color: #86efac; }
+        .badge.wg-badge:hover { background: rgba(34, 197, 94, 0.2); box-shadow: 0 5px 20px rgba(34, 197, 94, 0.2); }
+        .badge.wg-badge.no-wg { background: rgba(100, 100, 100, 0.1); border-color: rgba(100, 100, 100, 0.3); color: #9ca3af; }
+        .badge .count { background: rgba(34, 197, 94, 0.2); padding: 2px 6px; border-radius: 10px; color: #86efac; }
+        .badge.disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.9); color: #fff; padding: 6px 10px; border-radius: 6px;
+            font-size: 10px; white-space: nowrap; opacity: 0; pointer-events: none;
+            transition: opacity 0.2s; margin-bottom: 5px;
+        }
+        .badge.disabled:hover .tooltip { opacity: 1; }
+
+        /* Enhanced Power Button */
+        .power-button {
+            width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
+            background: linear-gradient(145deg, #252d45, #1a1f32);
+            box-shadow: 
+                12px 12px 30px rgba(0,0,0,0.5), 
+                -8px -8px 25px rgba(255,255,255,0.03),
+                inset 0 0 0 3px rgba(255,255,255,0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .power-button::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(102,126,234,0.1) 0%, transparent 70%);
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.5s;
+        }
+        .power-button:hover::before { transform: translate(-50%, -50%) scale(1.5); }
+        .power-button:hover { transform: scale(1.05); }
+        .power-button:active { transform: scale(0.95); }
+        .power-button.active {
+            background: linear-gradient(145deg, #1a4d2e, #0d2818);
+            box-shadow: 
+                12px 12px 30px rgba(0,0,0,0.5), 
+                -8px -8px 25px rgba(255,255,255,0.03),
+                inset 0 0 0 3px rgba(34,197,94,0.4), 
+                0 0 50px rgba(34,197,94,0.3),
+                0 0 100px rgba(34,197,94,0.1);
+        }
+        .power-button.active::before {
+            background: radial-gradient(circle, rgba(34,197,94,0.2) 0%, transparent 70%);
+            transform: translate(-50%, -50%) scale(1.5);
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        .power-button svg { 
+            width: 50px; height: 50px; stroke: #4a5568; stroke-width: 2; fill: none; 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            position: relative; z-index: 1;
+        }
+        .power-button.active svg { 
+            stroke: #22c55e; 
+            filter: drop-shadow(0 0 15px rgba(34,197,94,0.6)); 
+        }
+        .power-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+
+        .status { font-size: 15px; font-weight: 500; margin-bottom: 6px; min-height: 22px; transition: all 0.3s; }
+        .status.connected { color: #22c55e; text-shadow: 0 0 20px rgba(34,197,94,0.5); }
+        .status.disconnected { color: #8892b0; }
+        .status.connecting { color: #f59e0b; text-shadow: 0 0 20px rgba(245,158,11,0.5); }
+
+        .error { 
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); 
+            color: #ef4444; padding: 10px 15px; border-radius: 8px; font-size: 12px; 
+            margin-top: 12px; max-width: 280px; user-select: text; cursor: text;
+            backdrop-filter: blur(10px);
+        }
+
+        .footer { 
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; gap: 8px; justify-content: center; 
+            background: rgba(15,12,41,0.95); backdrop-filter: blur(10px);
+            padding: 10px 12px; 
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .footer-btn { 
+            background: none; border: none; color: #6b7280; font-size: 10px; cursor: pointer; 
+            padding: 6px 10px; border-radius: 15px; transition: all 0.3s;
+            min-width: auto; text-align: center;
+        }
+        .footer-btn:hover { color: #a5b4fc; background: rgba(102,126,234,0.15); }
+        .footer-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+        .footer-btn.disabled:hover { color: #6b7280; background: none; }
+
+        /* Servers Panel - Glass morphism */
+        .servers-panel {
+            background: rgba(100,255,218,0.03); 
+            border: 1px solid rgba(100,255,218,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 10px; margin: 12px 0; max-width: 100%;
+        }
+        .servers-panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(100,255,218,0.1);
+        }
+        .servers-panel-title { font-size: 10px; color: #8892b0; text-transform: uppercase; letter-spacing: 1px; }
+        .servers-list { display: flex; flex-direction: column; gap: 4px; }
+        .server-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 10px; background: rgba(0,0,0,0.2); border-radius: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 2px solid transparent;
+        }
+        .server-item:hover { background: rgba(0,0,0,0.3); transform: translateX(3px); }
+        .server-item.active { 
+            background: rgba(100,255,218,0.1); 
+            border-left-color: #64ffda; 
+            box-shadow: 0 0 20px rgba(100,255,218,0.1);
+        }
+        .server-item.internal { background: rgba(102,126,234,0.08); border-left-color: rgba(102,126,234,0.5); }
+        .server-item.internal.active { background: rgba(102,126,234,0.15); border-left-color: #667eea; }
+        .server-name { font-size: 11px; color: #ccd6f6; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .server-ping { font-size: 10px; font-weight: 600; min-width: 50px; text-align: right; }
+        .server-ping.good { color: #64ffda; }
+        .server-ping.medium { color: #ffd93d; }
+        .server-ping.bad { color: #ff6b6b; }
+        .server-ping.timeout { color: #4a5568; }
+        .server-ping.ping-active { color: #667eea; }
+        .server-ping.ping-timeout { color: #4a5568; }
+        .server-ping.loading { color: #8892b0; animation: pulse 1s infinite; }
+        .show-all-btn {
+            width: 100%; margin-top: 6px; background: rgba(100,255,218,0.05);
+            border: 1px dashed rgba(100,255,218,0.2); color: #64ffda;
+            padding: 6px; border-radius: 8px; font-size: 10px; cursor: pointer;
+            transition: all 0.3s;
+        }
+        .show-all-btn:hover { 
+            background: rgba(100,255,218,0.1); 
+            border-style: solid; 
+            transform: translateY(-2px);
+        }
+
+        /* Servers Modal */
+        .servers-modal { max-height: 80vh; }
+        .servers-modal .modal { width: 380px; max-width: 95%; }
+        .servers-modal-list {
+            max-height: 350px; overflow-y: auto; margin: 12px 0;
+            background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px;
+        }
+        .servers-modal-list .server-item { margin-bottom: 4px; }
+        .servers-modal-list .server-item:last-child { margin-bottom: 0; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .connecting .status { animation: pulse 1.5s infinite; }
+
+        /* Modal - Glass morphism */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: linear-gradient(135deg, rgba(30,39,68,0.95) 0%, rgba(22,29,48,0.95) 100%);
+            backdrop-filter: blur(20px);
+            border-radius: 20px; padding: 22px; width: 374px; max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.08);
+            animation: modalIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Custom Scrollbar */
+        .modal::-webkit-scrollbar { width: 6px; }
+        .modal::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+        .modal::-webkit-scrollbar-thumb { background: rgba(102,126,234,0.4); border-radius: 3px; }
+        .modal::-webkit-scrollbar-thumb:hover { background: rgba(102,126,234,0.6); }
+        
+        /* Global custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(102,126,234,0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(102,126,234,0.5); }
+        @keyframes modalIn {
+            from { transform: scale(0.9) translateY(20px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .modal h2 { font-size: 18px; margin-bottom: 8px; color: #fff; }
+        .modal p { font-size: 12px; color: #8892b0; margin-bottom: 16px; }
+        .modal input, .modal textarea {
+            width: 100%; padding: 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+            color: #fff; font-size: 13px; outline: none; transition: border-color 0.2s;
+        }
+        .modal input:focus, .modal textarea:focus { border-color: rgba(102,126,234,0.5); }
+        .modal input::placeholder, .modal textarea::placeholder { color: #4a5568; }
+        .modal textarea { min-height: 120px; resize: vertical; font-family: monospace; }
+        .modal label { display: block; font-size: 11px; color: #8892b0; margin-bottom: 4px; margin-top: 12px; }
+        .modal label:first-of-type { margin-top: 0; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 16px; }
+        .modal-btn {
+            flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer;
+            font-size: 13px; font-weight: 500; transition: all 0.2s;
+        }
+        .modal-btn.primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+        .modal-btn.primary:hover { opacity: 0.9; }
+        .modal-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .modal-btn.secondary { background: rgba(255,255,255,0.1); color: #8892b0; }
+        .modal-btn.secondary:hover { background: rgba(255,255,255,0.15); }
+        .modal-btn.danger { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .modal-btn.danger:hover { background: rgba(239,68,68,0.3); }
+        .modal-status { margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px; display: none; user-select: text; cursor: text; }
+        .modal-status.success { display: block; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+        .modal-status.error { display: block; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .modal-status.loading { display: block; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fcd34d; }
+
+        .proxy-list, .wg-list {
+            max-height: 150px; overflow-y: auto; margin-top: 10px; padding: 8px;
+            background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 11px;
+        }
+        .proxy-item, .wg-item {
+            padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;
+            color: #8892b0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+        }
+        .proxy-item:last-child, .wg-item:last-child { border-bottom: none; }
+        .proxy-item:hover, .wg-item:hover { background: rgba(255,255,255,0.05); }
+        .proxy-item .type, .wg-item .tag { color: #a5b4fc; font-weight: 500; text-transform: uppercase; font-size: 10px; }
+        .wg-item .actions { display: flex; gap: 6px; }
+        .wg-item .actions button {
+            background: none; border: none; cursor: pointer; padding: 2px 6px;
+            border-radius: 4px; font-size: 10px; transition: all 0.2s;
+        }
+        .wg-item .actions .edit { color: #a5b4fc; }
+        .wg-item .actions .edit:hover { background: rgba(165,180,252,0.2); }
+        .wg-item .actions .delete { color: #fca5a5; }
+        .wg-item .actions .delete:hover { background: rgba(252,165,165,0.2); }
+
+        .current-sub { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 11px; word-break: break-all; }
+        .current-sub .label { color: #4a5568; margin-bottom: 4px; }
+        .current-sub .url { color: #8892b0; }
+
+        /* Profile Modal Styles */
+        .profiles-list {
+            max-height: 300px; overflow-y: auto; margin: 12px 0;
+        }
+        .profile-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px; margin-bottom: 8px; border-radius: 10px;
+            background: rgba(255,255,255,0.05); border: 1px solid transparent;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .profile-item:hover { background: rgba(102,126,234,0.1); }
+        .profile-item.active { 
+            background: rgba(102,126,234,0.15); 
+            border-color: rgba(102,126,234,0.4);
+            box-shadow: 0 0 20px rgba(102,126,234,0.2);
+        }
+        .profile-item .profile-info { flex: 1; }
+        .profile-item .profile-name { 
+            font-weight: 600; color: #fff; font-size: 14px; 
+            display: flex; align-items: center; gap: 8px;
+        }
+        .profile-item .profile-name .default-badge {
+            font-size: 9px; background: rgba(102,126,234,0.3); 
+            padding: 2px 6px; border-radius: 8px; color: #a5b4fc;
+        }
+        .profile-item .profile-meta { 
+            font-size: 11px; color: #6b7280; margin-top: 4px;
+            display: flex; gap: 12px;
+        }
+        .profile-item .profile-meta span { display: flex; align-items: center; gap: 4px; }
+        .profile-item .profile-actions { display: flex; gap: 6px; }
+        .profile-item .profile-actions button {
+            background: none; border: none; cursor: pointer;
+            padding: 6px 8px; border-radius: 6px; font-size: 12px;
+            transition: all 0.2s; opacity: 0.6;
+        }
+        .profile-item:hover .profile-actions button { opacity: 1; }
+        .profile-item .profile-actions .edit-btn { color: #a5b4fc; }
+        .profile-item .profile-actions .edit-btn:hover { background: rgba(165,180,252,0.2); }
+        .profile-item .profile-actions .delete-btn { color: #fca5a5; }
+        .profile-item .profile-actions .delete-btn:hover { background: rgba(252,165,165,0.2); }
+        .profile-item .profile-actions .delete-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .profile-item .active-indicator {
+            width: 8px; height: 8px; border-radius: 50%; margin-right: 10px;
+            background: #22c55e; box-shadow: 0 0 10px rgba(34,197,94,0.5);
+        }
+        .add-profile-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 12px; margin-top: 8px;
+            background: rgba(255,255,255,0.05); border: 1px dashed rgba(255,255,255,0.2);
+            border-radius: 10px; color: #8892b0; font-size: 13px;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .add-profile-btn:hover { 
+            background: rgba(102,126,234,0.1); 
+            border-color: rgba(102,126,234,0.4);
+            color: #a5b4fc;
+        }
+
+        /* Logo clickable styles */
+        .logo { cursor: pointer; }
+        .logo:hover { transform: scale(1.05); }
+        .logo.clickable::after { opacity: 0.7; }
+
+        /* About modal - Enhanced */
+        .about-content { text-align: center; }
+        .about-logo { 
+            width: 60px; height: 60px; margin: 0 auto 14px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); 
+            border-radius: 16px; display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 8px 30px rgba(102,126,234,0.4);
+            animation: aboutLogoFloat 3s ease-in-out infinite;
+        }
+        @keyframes aboutLogoFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-5px) rotate(2deg); }
+        }
+        .about-logo svg { width: 35px; height: 35px; fill: white; }
+        .about-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .about-version { font-size: 11px; color: #8892b0; margin-bottom: 16px; }
+        .about-info { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+        .about-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11px; }
+        .about-row:last-child { border-bottom: none; }
+        .about-row .label { color: #6b7280; }
+        .about-row .value { color: #a5b4fc; }
+        .about-row .value a { color: #a5b4fc; text-decoration: none; transition: color 0.2s; }
+        .about-row .value a:hover { color: #c4b5fd; text-decoration: underline; }
+        .about-copyright { font-size: 10px; color: #4a5568; margin-top: 10px; }
+
+        .empty-state { text-align: center; padding: 20px; color: #4a5568; font-size: 12px; }
+
+        /* Settings Modal */
+        .settings-group { margin-bottom: 16px; }
+        .settings-group-title { font-size: 11px; color: #4a5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .setting-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 6px;
+        }
+        .setting-item .label { font-size: 12px; color: #d1d5db; }
+        .setting-item .desc { font-size: 10px; color: #6b7280; margin-top: 2px; }
+        .toggle-switch {
+            position: relative; width: 44px; height: 24px; cursor: pointer;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-switch .slider {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(100,100,100,0.5); border-radius: 24px; transition: 0.3s;
+        }
+        .toggle-switch .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
+        }
+        .toggle-switch input:checked + .slider { background: #22c55e; }
+        .toggle-switch input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Settings Select */
+        .setting-select {
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; padding: 6px 10px; color: #fff; font-size: 12px;
+            cursor: pointer; outline: none; min-width: 100px;
+        }
+        .setting-select:focus { border-color: rgba(102,126,234,0.5); }
+        .setting-select option { background: #1a1f32; color: #fff; }
+
+        /* Stats Modal - Enhanced */
+        .stats-charts { margin-bottom: 16px; }
+        .chart-container { 
+            background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; 
+            margin-bottom: 10px; overflow: hidden;
+        }
+        .chart-title { 
+            font-size: 10px; color: #6b7280; margin-bottom: 8px; 
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .chart-container canvas { display: block; width: 100%; height: auto; }
+        
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .stat-card {
+            background: rgba(0,0,0,0.2); border-radius: 14px; padding: 12px; text-align: center;
+            transition: all 0.3s; position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, currentColor, transparent);
+            opacity: 0.3;
+        }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-card .icon { font-size: 20px; margin-bottom: 6px; }
+        .stat-card .value { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+        .stat-card .label { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card.upload { color: #22c55e; }
+        .stat-card.upload .value { color: #22c55e; }
+        .stat-card.download { color: #3b82f6; }
+        .stat-card.download .value { color: #3b82f6; }
+        .stat-card.duration { color: #f59e0b; }
+        .stat-card.duration .value { color: #f59e0b; }
+        .stat-card.sessions { color: #a855f7; }
+        .stat-card.sessions .value { color: #a855f7; }
+        .stats-section { margin-top: 14px; }
+        .stats-section-title { font-size: 10px; color: #4a5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Logs Modal */
+        .logs-modal {
+            width: 90% !important; height: 90vh; max-height: 90vh; display: flex; flex-direction: column;
+        }
+        .logs-container {
+            background: rgba(0,0,0,0.4); border-radius: 8px; padding: 12px;
+            flex: 1; overflow-y: auto; font-family: 'Consolas', monospace;
+            font-size: 11px; line-height: 1.6; min-height: 0;
+        }
+        .log-entry { color: #9ca3af; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry .time { color: #6b7280; margin-right: 8px; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.success { color: #4ade80; }
+        .logs-empty { text-align: center; color: #4a5568; padding: 40px 0; }
+
+        /* Update Banner */
+        .update-banner {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px 20px; border-radius: 20px; display: none; align-items: center; gap: 12px;
+            box-shadow: 0 4px 20px rgba(102,126,234,0.4); z-index: 100; animation: slideDown 0.3s ease;
+        }
+        .update-banner.show { display: flex; }
+        .update-banner .text { font-size: 12px; color: #fff; }
+        .update-banner .btn {
+            background: rgba(255,255,255,0.2); border: none; color: #fff; padding: 4px 12px;
+            border-radius: 12px; cursor: pointer; font-size: 11px; transition: 0.2s;
+        }
+        .update-banner .btn:hover { background: rgba(255,255,255,0.3); }
+        .update-banner .close {
+            background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer;
+            font-size: 16px; padding: 0 4px; line-height: 1;
+        }
+        @keyframes slideDown { from { transform: translateX(-50%) translateY(-100%); } to { transform: translateX(-50%) translateY(0); } }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed; bottom: 50px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            background: rgba(30,39,68,0.95); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 10px 14px;
+            display: flex; align-items: center; gap: 10px; 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.1);
+            border-left: 3px solid #667eea; animation: toastIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); max-width: 260px;
+        }
+        .toast.success { border-left-color: #22c55e; }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.warning { border-left-color: #f59e0b; }
+        .toast .icon { font-size: 16px; }
+        .toast .message { font-size: 11px; color: #d1d5db; }
+        .toast.hide { animation: toastOut 0.3s ease forwards; }
+        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+        /* QR Scanner Styles */
+        .qr-scanner-container {
+            position: relative; width: 100%; max-width: 300px; margin: 0 auto;
+            background: #000; border-radius: 12px; overflow: hidden;
+        }
+        .qr-scanner-container video {
+            width: 100%; height: auto; display: block;
+        }
+        .qr-scanner-container canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+        .qr-scanner-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .qr-scanner-frame {
+            width: 200px; height: 200px; border: 2px solid rgba(102,126,234,0.8);
+            border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .qr-scanner-frame::before, .qr-scanner-frame::after {
+            content: ''; position: absolute; width: 30px; height: 30px;
+            border-color: #667eea; border-style: solid;
+        }
+        .qr-scanner-frame::before {
+            top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 12px 0 0 0;
+        }
+        .qr-scanner-frame::after {
+            bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 12px 0;
+        }
+        .qr-scanner-line {
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, #667eea, transparent);
+            animation: scanLine 2s linear infinite;
+        }
+        @keyframes scanLine {
+            0% { top: 0; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .qr-btn-row {
+            display: flex; gap: 8px; margin-top: 12px;
+        }
+        .qr-file-input { display: none; }
+        
+        /* Update Modal Styles */
+        .update-progress {
+            margin: 16px 0;
+        }
+        .update-progress-bar {
+            height: 8px; background: rgba(255,255,255,0.1);
+            border-radius: 4px; overflow: hidden;
+        }
+        .update-progress-fill {
+            height: 100%; background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s; width: 0%;
+        }
+        .update-progress-text {
+            font-size: 11px; color: #8892b0; margin-top: 6px; text-align: center;
+        }
+        .update-info {
+            background: rgba(0,0,0,0.2); border-radius: 10px; padding: 12px; margin-bottom: 12px;
+        }
+        .update-info-row {
+            display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0;
+        }
+        .update-info-row .label { color: #6b7280; }
+        .update-info-row .value { color: #a5b4fc; }
+        .update-notes {
+            max-height: 150px; overflow-y: auto; font-size: 11px; color: #8892b0;
+            background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px;
+            white-space: pre-wrap; margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Update Banner -->
+    <div class="update-banner" id="updateBanner">
+        <span class="text">🚀 Доступна новая версия <span id="updateVersion"></span></span>
+        <button class="btn" onclick="openUpdateModal()">Обновить</button>
+        <button class="close" onclick="hideUpdateBanner()">×</button>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container" id="app">
+        <div class="logo clickable" id="profileLogo" onclick="openProfilesModal()" title="Выбрать профиль">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        </div>
+        <h1>Kampus VPN</h1>
+        <p class="subtitle" id="activeProfileName">Безопасное подключение</p>
+        
+        <div class="badges">
+            <div class="badge no-sub" id="vpnBadge" onclick="handleVpnBadgeClick()">
+                <span>⚡ Добавить VPN</span>
+                <span class="tooltip">Сначала отключите VPN</span>
+            </div>
+            <div class="badge wg-badge no-wg" id="wgBadge" onclick="handleWgBadgeClick()">
+                <span>🏢 Рабочие сети: 0</span>
+                <span class="tooltip">Сначала отключите VPN</span>
+            </div>
+        </div>
+        
+        <button class="power-button" id="powerBtn" onclick="toggle()">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 3v9" stroke-linecap="round"/>
+                <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64" stroke-linecap="round"/>
+            </svg>
+        </button>
+        
+        <div class="status disconnected" id="status">Отключено</div>
+        <div id="error"></div>
+        
+        <!-- Ping Panel (показывается при подключении) -->
+        <div class="servers-panel" id="serversPanel" style="display: none;">
+            <div class="servers-panel-header">
+                <span class="servers-panel-title">Ping</span>
+            </div>
+            <div class="servers-list" id="serversList">
+                <!-- Заполняется динамически -->
+            </div>
+            <button class="show-all-btn" id="showAllServersBtn" style="display: none;" onclick="openServersModal()">
+                Показать все (<span id="totalServersCount">0</span>)
+            </button>
+        </div>
+        
+        <div class="footer">
+            <button class="footer-btn" id="settingsBtn" onclick="openSettings()" title="">⚙️ Настройки</button>
+            <button class="footer-btn" onclick="openStats()">📊 Статистика</button>
+            <button class="footer-btn" onclick="openLogsModal()">📋 Логи</button>
+            <button class="footer-btn" onclick="openAbout()">ℹ️ About</button>
+        </div>
+    </div>
+
+    <!-- VPN Subscription Modal -->
+    <div class="modal-overlay" id="vpnModal" onclick="closeModalOnOverlay(event, 'vpnModal')">
+        <div class="modal">
+            <h2>🔗 Добавить VPN</h2>
+            <p>Вставьте ссылку на подписку или отсканируйте QR-код</p>
+            <div class="current-sub" id="currentSub" style="display: none;">
+                <div class="label">Текущая подписка:</div>
+                <div class="url" id="currentSubUrl"></div>
+            </div>
+            <input type="text" id="subscriptionInput" placeholder="https://... или vless://..." autocomplete="off">
+            <div class="modal-status" id="vpnModalStatus"></div>
+            <div class="proxy-list" id="proxyList" style="display: none;"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeModal('vpnModal')">Отмена</button>
+                <button class="modal-btn secondary" onclick="openQRScanner()">📷 QR</button>
+                <button class="modal-btn danger" id="removeVpnBtn" onclick="removeSubscription()" style="display: none;">Удалить</button>
+                <button class="modal-btn primary" id="testVpnBtn" onclick="testSubscription()">Проверить</button>
+                <button class="modal-btn primary" id="saveVpnBtn" onclick="saveSubscription()" style="display: none;">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WireGuard List Modal -->
+    <div class="modal-overlay" id="wgListModal" onclick="closeModalOnOverlay(event, 'wgListModal')">
+        <div class="modal">
+            <h2>🏢 Рабочие сети (WireGuard)</h2>
+            <p>VPN-туннели для доступа к корпоративным ресурсам</p>
+            <div class="wg-list" id="wgList">
+                <div class="empty-state">Нет добавленных рабочих сетей</div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeModal('wgListModal')">Закрыть</button>
+                <button class="modal-btn primary" onclick="openAddWgModal()">➕ Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WireGuard Add/Edit Modal -->
+    <div class="modal-overlay" id="wgEditModal" onclick="closeModalOnOverlay(event, 'wgEditModal')">
+        <div class="modal">
+            <h2 id="wgEditTitle">➕ Добавить WireGuard</h2>
+            <p>Вставьте стандартный WireGuard конфиг или заполните поля вручную</p>
+            
+            <label>Тег (латиница, без пробелов) *</label>
+            <input type="text" id="wgTag" placeholder="например: kampus-internal" pattern="[a-zA-Z][a-zA-Z0-9_-]*">
+            
+            <label>Название</label>
+            <input type="text" id="wgName" placeholder="например: K-AMPUS Офис">
+            
+            <label>WireGuard конфиг</label>
+            <textarea id="wgConfig" placeholder="[Interface]
+PrivateKey = ...
+Address = ...
+
+[Peer]
+PublicKey = ...
+AllowedIPs = ...
+Endpoint = ..."></textarea>
+            
+            <div class="modal-status" id="wgModalStatus"></div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeWgEditModal()">Отмена</button>
+                <button class="modal-btn danger" id="deleteWgBtn" onclick="deleteWireGuard()" style="display: none;">Удалить</button>
+                <button class="modal-btn primary" id="parseWgBtn" onclick="parseWireGuard()">Проверить</button>
+                <button class="modal-btn primary" id="saveWgBtn" onclick="saveWireGuard()" style="display: none;">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Servers Modal -->
+    <div class="modal-overlay servers-modal" id="serversModal" onclick="closeModalOnOverlay(event, 'serversModal')">
+        <div class="modal">
+            <h2>📡 Ping</h2>
+            <p>Все доступные серверы</p>
+            <div class="servers-modal-list" id="serversModalList">
+                <!-- Заполняется динамически -->
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn" onclick="closeModal('serversModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div class="modal-overlay" id="aboutModal" onclick="closeModalOnOverlay(event, 'aboutModal')">
+        <div class="modal">
+            <div class="about-content">
+                <div class="about-logo">
+                    <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                </div>
+                <div class="about-title">Kampus VPN</div>
+                <div class="about-version" id="aboutVersion">v1.0.0</div>
+                <div class="about-info">
+                    <div class="about-row"><span class="label">sing-box</span><span class="value" id="aboutSingboxVersion">загрузка...</span></div>
+                    <div class="about-row"><span class="label">Разработчик</span><span class="value">Droponevedimka</span></div>
+                    <div class="about-row"><span class="label">Email</span><span class="value"><a href="mailto:dr.oponevedimkga@gmail.com">dr.oponevedimkga@gmail.com</a></span></div>
+                    <div class="about-row"><span class="label">GitHub</span><span class="value"><a href="https://github.com/Droponevedimka/k-vpn-client" target="_blank">Droponevedimka/k-vpn-client</a></span></div>
+                </div>
+                <div class="about-copyright">© 2024-2025 Kampus VPN. Все права защищены.</div>
+                <div class="modal-buttons" style="margin-top: 16px;">
+                    <button class="modal-btn secondary" onclick="closeModal('aboutModal')">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal" style="width: 320px;">
+            <h2 id="confirmTitle">Подтверждение</h2>
+            <p id="confirmMessage" style="margin-bottom: 20px;"></p>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="confirmCancel">Отмена</button>
+                <button class="modal-btn danger" id="confirmOk">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal" onclick="closeModalOnOverlay(event, 'settingsModal')">
+        <div class="modal" style="width: 360px;">
+            <h2>⚙️ Настройки</h2>
+            <p>Настройки приложения</p>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Общие</div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Автозапуск</div>
+                        <div class="desc">Запускать при входе в систему</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingAutoStart">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Уведомления</div>
+                        <div class="desc">Показывать уведомления о подключении</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingNotifications">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Логирование sing-box</div>
+                        <div class="desc">Записывать логи в файл</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingEnableLogging">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Подписка</div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Авто-обновление</div>
+                        <div class="desc">Обновлять подписку автоматически</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingAutoUpdateSub">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Обновления</div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Проверять обновления</div>
+                        <div class="desc">Уведомлять о новых версиях</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingCheckUpdates">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Внешний вид</div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Тема</div>
+                        <div class="desc">Оформление приложения</div>
+                    </div>
+                    <select id="settingTheme" class="setting-select">
+                        <option value="dark">Тёмная</option>
+                        <option value="light">Светлая</option>
+                        <option value="system">Системная</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Язык</div>
+                        <div class="desc">Язык интерфейса</div>
+                    </div>
+                    <select id="settingLanguage" class="setting-select">
+                        <option value="ru">Русский</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Конфигурация</div>
+                <div class="setting-item" style="flex-direction: column; align-items: stretch;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <div class="label">Template.json</div>
+                            <div class="desc">Редактор шаблона конфигурации sing-box</div>
+                        </div>
+                        <button class="modal-btn secondary" style="flex: 0; padding: 4px 10px; font-size: 10px;" onclick="openTemplateEditor()">📝 Редактор</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="openFolder()">📁 Папка</button>
+                <button class="modal-btn secondary" onclick="closeModal('settingsModal')">Закрыть</button>
+                <button class="modal-btn primary" onclick="saveSettings()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Editor Modal -->
+    <div class="modal-overlay" id="templateModal" onclick="closeModalOnOverlay(event, 'templateModal')">
+        <div class="modal" style="width: 90%; max-width: 600px; height: 80vh; display: flex; flex-direction: column;">
+            <h2>📝 Редактор Template</h2>
+            <p>Шаблон конфигурации sing-box. Изменения применятся после переподключения VPN.</p>
+            
+            <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; margin: 12px 0;">
+                <textarea id="templateEditor" style="flex: 1; min-height: 200px; font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; line-height: 1.4; resize: none; tab-size: 2;"></textarea>
+            </div>
+            
+            <div class="modal-status" id="templateModalStatus"></div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn danger" onclick="resetTemplate()">🔄 Сбросить</button>
+                <button class="modal-btn secondary" onclick="closeModal('templateModal')">Отмена</button>
+                <button class="modal-btn primary" onclick="saveTemplate()">💾 Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="statsModal" onclick="closeModalOnOverlay(event, 'statsModal')">
+        <div class="modal" style="width: 440px;">
+            <h2>📊 Статистика</h2>
+            <p>Статистика использования VPN</p>
+            
+            <!-- Traffic Charts -->
+            <div class="stats-charts">
+                <div class="chart-container">
+                    <div class="chart-title">Скорость (последние 30 сек)</div>
+                    <canvas id="speedChart" height="100"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Трафик за сессию</div>
+                    <canvas id="trafficChart" height="80"></canvas>
+                </div>
+            </div>
+            
+            <div class="stats-section">
+                <div class="stats-section-title">Текущая сессия</div>
+                <div class="stats-grid">
+                    <div class="stat-card upload">
+                        <div class="icon">↑</div>
+                        <div class="value" id="statCurrentUpload">0 B</div>
+                        <div class="label">Отправлено</div>
+                    </div>
+                    <div class="stat-card download">
+                        <div class="icon">↓</div>
+                        <div class="value" id="statCurrentDownload">0 B</div>
+                        <div class="label">Получено</div>
+                    </div>
+                    <div class="stat-card duration">
+                        <div class="icon">⏱</div>
+                        <div class="value" id="statCurrentDuration">0 сек</div>
+                        <div class="label">Длительность</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-section">
+                <div class="stats-section-title">Всего</div>
+                <div class="stats-grid">
+                    <div class="stat-card upload">
+                        <div class="icon">↑</div>
+                        <div class="value" id="statTotalUpload">0 B</div>
+                        <div class="label">Отправлено</div>
+                    </div>
+                    <div class="stat-card download">
+                        <div class="icon">↓</div>
+                        <div class="value" id="statTotalDownload">0 B</div>
+                        <div class="label">Получено</div>
+                    </div>
+                    <div class="stat-card duration">
+                        <div class="icon">⏱</div>
+                        <div class="value" id="statTotalDuration">0 сек</div>
+                        <div class="label">Время онлайн</div>
+                    </div>
+                    <div class="stat-card sessions">
+                        <div class="icon">🔄</div>
+                        <div class="value" id="statTotalSessions">0</div>
+                        <div class="label">Сессий</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn danger" onclick="resetStats()">Сбросить</button>
+                <button class="modal-btn secondary" onclick="closeModal('statsModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div class="modal-overlay" id="logsModal" onclick="closeModalOnOverlay(event, 'logsModal')">
+        <div class="modal logs-modal">
+            <h2>📋 Логи</h2>
+            <p>Последние события приложения</p>
+            
+            <div class="logs-container" id="logsContainer">
+                <div class="logs-empty">Нет записей</div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="openLogs()">📄 Файл логов</button>
+                <button class="modal-btn danger" onclick="clearLogs()">Очистить</button>
+                <button class="modal-btn secondary" onclick="closeModal('logsModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profiles Modal -->
+    <div class="modal-overlay" id="profilesModal" onclick="closeModalOnOverlay(event, 'profilesModal')">
+        <div class="modal" style="width: 380px;">
+            <h2>👤 Профили</h2>
+            <p>Выберите или создайте профиль подключения</p>
+            
+            <div class="profiles-list" id="profilesList">
+                <!-- Заполняется динамически -->
+            </div>
+            
+            <button class="add-profile-btn" onclick="openCreateProfileModal()">
+                ➕ Создать профиль
+            </button>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeModal('profilesModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Profile Modal -->
+    <div class="modal-overlay" id="profileEditModal" onclick="closeModalOnOverlay(event, 'profileEditModal')">
+        <div class="modal" style="width: 340px;">
+            <h2 id="profileEditTitle">➕ Новый профиль</h2>
+            <p>Введите название профиля</p>
+            
+            <label>Название *</label>
+            <input type="text" id="profileNameInput" placeholder="Например: Личный VPN" autocomplete="off">
+            
+            <div class="modal-status" id="profileModalStatus"></div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeModal('profileEditModal')">Отмена</button>
+                <button class="modal-btn primary" id="saveProfileBtn" onclick="saveProfile()">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Scanner Modal -->
+    <div class="modal-overlay" id="qrScannerModal" onclick="closeModalOnOverlay(event, 'qrScannerModal')">
+        <div class="modal" style="width: 360px;">
+            <h2>📷 Сканер QR-кода</h2>
+            <p>Отсканируйте QR-код с подпиской или выберите изображение</p>
+            
+            <div class="qr-scanner-container" id="qrScannerContainer">
+                <video id="qrVideo" playsinline></video>
+                <canvas id="qrCanvas"></canvas>
+                <div class="qr-scanner-overlay">
+                    <div class="qr-scanner-frame">
+                        <div class="qr-scanner-line"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-status" id="qrModalStatus"></div>
+            
+            <div class="qr-btn-row">
+                <input type="file" id="qrFileInput" class="qr-file-input" accept="image/*" onchange="scanQRFromFile(event)">
+                <button class="modal-btn secondary" style="flex:1" onclick="document.getElementById('qrFileInput').click()">📁 Из файла</button>
+                <button class="modal-btn primary" style="flex:1" id="qrCameraBtn" onclick="toggleQRCamera()">📷 Камера</button>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeQRScanner()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Modal -->
+    <div class="modal-overlay" id="updateModal" onclick="closeModalOnOverlay(event, 'updateModal')">
+        <div class="modal" style="width: 380px;">
+            <h2>🚀 Обновление приложения</h2>
+            <p>Доступна новая версия Kampus VPN</p>
+            
+            <div class="update-info">
+                <div class="update-info-row">
+                    <span class="label">Текущая версия:</span>
+                    <span class="value" id="updateCurrentVersion">-</span>
+                </div>
+                <div class="update-info-row">
+                    <span class="label">Новая версия:</span>
+                    <span class="value" id="updateNewVersion">-</span>
+                </div>
+                <div class="update-info-row">
+                    <span class="label">Размер:</span>
+                    <span class="value" id="updateFileSize">-</span>
+                </div>
+                <div class="update-info-row">
+                    <span class="label">Дата релиза:</span>
+                    <span class="value" id="updatePublishedAt">-</span>
+                </div>
+            </div>
+            
+            <div class="update-notes" id="updateNotes" style="display: none;"></div>
+            
+            <div class="update-progress" id="updateProgress" style="display: none;">
+                <div class="update-progress-bar">
+                    <div class="update-progress-fill" id="updateProgressFill"></div>
+                </div>
+                <div class="update-progress-text" id="updateProgressText">Загрузка...</div>
+            </div>
+            
+            <div class="modal-status" id="updateModalStatus"></div>
+            
+            <div class="modal-buttons" id="updateModalButtons">
+                <button class="modal-btn secondary" onclick="closeModal('updateModal')">Позже</button>
+                <button class="modal-btn secondary" onclick="openUpdateLink()">📄 Страница релиза</button>
+                <button class="modal-btn primary" id="installUpdateBtn" onclick="installUpdate()">⬇️ Установить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const go = {
+            main: {
+                App: {
+                    GetStatus: () => window['go']['main']['App']['GetStatus'](),
+                    Start: () => window['go']['main']['App']['Start'](),
+                    Stop: () => window['go']['main']['App']['Stop'](),
+                    Toggle: () => window['go']['main']['App']['Toggle'](),
+                    Quit: () => window['go']['main']['App']['Quit'](),
+                    OpenConfigFolder: () => window['go']['main']['App']['OpenConfigFolder'](),
+                    OpenLogs: () => window['go']['main']['App']['OpenLogs'](),
+                    GetVersion: () => window['go']['main']['App']['GetVersion'](),
+                    GetCurrentSubscription: () => window['go']['main']['App']['GetCurrentSubscription'](),
+                    TestVPNConnection: (url) => window['go']['main']['App']['TestVPNConnection'](url),
+                    SetVPNSubscription: (url) => window['go']['main']['App']['SetVPNSubscription'](url),
+                    RemoveVPNSubscription: () => window['go']['main']['App']['RemoveVPNSubscription'](),
+                    CanModifyVPN: () => window['go']['main']['App']['CanModifyVPN'](),
+                    // WireGuard
+                    GetWireGuardList: () => window['go']['main']['App']['GetWireGuardList'](),
+                    AddWireGuard: (tag, name, config) => window['go']['main']['App']['AddWireGuard'](tag, name, config),
+                    UpdateWireGuard: (oldTag, tag, name, config) => window['go']['main']['App']['UpdateWireGuard'](oldTag, tag, name, config),
+                    DeleteWireGuard: (tag) => window['go']['main']['App']['DeleteWireGuard'](tag),
+                    GetWireGuardConfig: (tag) => window['go']['main']['App']['GetWireGuardConfig'](tag),
+                    ParseWireGuardConfigAPI: (config) => window['go']['main']['App']['ParseWireGuardConfigAPI'](config),
+                    // Settings
+                    GetAppConfig: () => window['go']['main']['App']['GetAppConfig'](),
+                    SaveAppConfig: (autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, subUpdateInterval) => 
+                        window['go']['main']['App']['SaveAppConfig'](autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, subUpdateInterval),
+                    // Template
+                    GetTemplateContent: () => window['go']['main']['App']['GetTemplateContent'](),
+                    SaveTemplateContent: (content) => window['go']['main']['App']['SaveTemplateContent'](content),
+                    ResetTemplate: () => window['go']['main']['App']['ResetTemplate'](),
+                    // Stats
+                    GetTrafficStats: () => window['go']['main']['App']['GetTrafficStats'](),
+                    ResetTrafficStats: () => window['go']['main']['App']['ResetTrafficStats'](),
+                    UpdateTrafficFromClash: () => window['go']['main']['App']['UpdateTrafficFromClash'](),
+                    // Proxy info
+                    GetProxiesWithDelay: () => window['go']['main']['App']['GetProxiesWithDelay'](),
+                    TestProxyDelay: (name) => window['go']['main']['App']['TestProxyDelay'](name),
+                    GetCurrentProxy: () => window['go']['main']['App']['GetCurrentProxy'](),
+                    // Updates
+                    CheckForUpdates: () => window['go']['main']['App']['CheckForUpdates'](),
+                    GetAppVersion: () => window['go']['main']['App']['GetAppVersion'](),
+                    DownloadAndInstallUpdate: (url) => window['go']['main']['App']['DownloadAndInstallUpdate'](url),
+                    // Logs
+                    GetLogs: (lastN) => window['go']['main']['App']['GetLogs'](lastN),
+                    ClearLogs: () => window['go']['main']['App']['ClearLogs'](),
+                    // Window visibility
+                    SetWindowVisible: (visible) => window['go']['main']['App']['SetWindowVisible'](visible),
+                    // Profiles
+                    GetProfiles: () => window['go']['main']['App']['GetProfiles'](),
+                    GetActiveProfile: () => window['go']['main']['App']['GetActiveProfile'](),
+                    SetActiveProfile: (id) => window['go']['main']['App']['SetActiveProfile'](id),
+                    CreateProfile: (name) => window['go']['main']['App']['CreateProfile'](name),
+                    UpdateProfile: (id, name) => window['go']['main']['App']['UpdateProfile'](id, name),
+                    DeleteProfile: (id) => window['go']['main']['App']['DeleteProfile'](id),
+                }
+            }
+        };
+
+        let isConnecting = false;
+        let isVpnRunning = false;
+        let testedVpnUrl = null;
+        let currentSubscription = null;
+        let wireGuardConfigs = [];
+        let editingWgTag = null; // null = adding new, string = editing existing
+        let appConfig = null;
+        let updateInfo = null;
+        let statsUpdateInterval = null;
+        let currentProfiles = []; // Profiles list
+        let activeProfileId = 1;  // Active profile ID
+        let editingProfileId = null; // null = creating, number = editing
+        let currentLang = 'ru'; // Current language
+        
+        // Translations
+        const i18n = {
+            ru: {
+                // Status
+                connected: 'Подключено',
+                disconnected: 'Отключено',
+                connecting: 'Подключение...',
+                disconnecting: 'Отключение...',
+                // Badges
+                addVpn: '⚡ Добавить VPN',
+                proxies: 'прокси',
+                workNetworks: '🏢 Рабочие сети',
+                // Profile
+                profile: 'Профиль',
+                profiles: 'Профили',
+                selectProfile: 'Выберите или создайте профиль подключения',
+                createProfile: '➕ Создать профиль',
+                newProfile: '➕ Новый профиль',
+                editProfile: '✏️ Редактировать профиль',
+                profileName: 'Название профиля',
+                default: 'По умолчанию',
+                noSubscription: 'Нет подписки',
+                cantDeleteDefault: 'Нельзя удалить профиль по умолчанию',
+                deleteProfile: 'Удаление профиля',
+                deleteProfileConfirm: 'Удалить профиль "{name}"? Все настройки профиля будут потеряны.',
+                profileCreated: 'Профиль создан',
+                profileUpdated: 'Профиль обновлён',
+                profileDeleted: 'Профиль удалён',
+                profileActivated: 'Профиль активирован',
+                disconnectFirst: 'Отключите VPN перед сменой профиля',
+                enterProfileName: 'Введите название профиля',
+                // Settings
+                settings: 'Настройки',
+                general: 'Общие',
+                autoStart: 'Автозапуск',
+                autoStartDesc: 'Запускать при входе в систему',
+                notifications: 'Уведомления',
+                notificationsDesc: 'Показывать уведомления о подключении',
+                logging: 'Логирование sing-box',
+                loggingDesc: 'Записывать логи в файл',
+                subscription: 'Подписка',
+                autoUpdate: 'Авто-обновление',
+                autoUpdateDesc: 'Обновлять подписку автоматически',
+                updates: 'Обновления',
+                checkUpdates: 'Проверять обновления',
+                checkUpdatesDesc: 'Уведомлять о новых версиях',
+                appearance: 'Внешний вид',
+                theme: 'Тема',
+                themeDesc: 'Оформление приложения',
+                themeDark: 'Тёмная',
+                themeLight: 'Светлая',
+                themeSystem: 'Системная',
+                language: 'Язык',
+                languageDesc: 'Язык интерфейса',
+                configuration: 'Конфигурация',
+                templateEditor: 'Редактор шаблона',
+                // Actions
+                cancel: 'Отмена',
+                close: 'Закрыть',
+                save: 'Сохранить',
+                create: 'Создать',
+                delete: 'Удалить',
+                edit: 'Редактировать',
+                folder: 'Папка',
+                settingsSaved: 'Настройки сохранены',
+                // Errors
+                error: 'Ошибка',
+                warning: 'Предупреждение',
+                // VPN
+                vpnConnected: 'VPN подключен',
+                vpnDisconnected: 'VPN отключен',
+                disconnectVpnFirst: 'Сначала отключите VPN',
+                secureConnection: 'Безопасное подключение',
+            },
+            en: {
+                // Status
+                connected: 'Connected',
+                disconnected: 'Disconnected',
+                connecting: 'Connecting...',
+                disconnecting: 'Disconnecting...',
+                // Badges
+                addVpn: '⚡ Add VPN',
+                proxies: 'proxies',
+                workNetworks: '🏢 Work networks',
+                // Profile
+                profile: 'Profile',
+                profiles: 'Profiles',
+                selectProfile: 'Select or create a connection profile',
+                createProfile: '➕ Create profile',
+                newProfile: '➕ New profile',
+                editProfile: '✏️ Edit profile',
+                profileName: 'Profile name',
+                default: 'Default',
+                noSubscription: 'No subscription',
+                cantDeleteDefault: 'Cannot delete the default profile',
+                deleteProfile: 'Delete profile',
+                deleteProfileConfirm: 'Delete profile "{name}"? All profile settings will be lost.',
+                profileCreated: 'Profile created',
+                profileUpdated: 'Profile updated',
+                profileDeleted: 'Profile deleted',
+                profileActivated: 'Profile activated',
+                disconnectFirst: 'Disconnect VPN before switching profile',
+                enterProfileName: 'Enter profile name',
+                // Settings
+                settings: 'Settings',
+                general: 'General',
+                autoStart: 'Auto-start',
+                autoStartDesc: 'Launch at system startup',
+                notifications: 'Notifications',
+                notificationsDesc: 'Show connection notifications',
+                logging: 'sing-box logging',
+                loggingDesc: 'Write logs to file',
+                subscription: 'Subscription',
+                autoUpdate: 'Auto-update',
+                autoUpdateDesc: 'Update subscription automatically',
+                updates: 'Updates',
+                checkUpdates: 'Check for updates',
+                checkUpdatesDesc: 'Notify about new versions',
+                appearance: 'Appearance',
+                theme: 'Theme',
+                themeDesc: 'App theme',
+                themeDark: 'Dark',
+                themeLight: 'Light',
+                themeSystem: 'System',
+                language: 'Language',
+                languageDesc: 'Interface language',
+                configuration: 'Configuration',
+                templateEditor: 'Template editor',
+                // Actions
+                cancel: 'Cancel',
+                close: 'Close',
+                save: 'Save',
+                create: 'Create',
+                delete: 'Delete',
+                edit: 'Edit',
+                folder: 'Folder',
+                settingsSaved: 'Settings saved',
+                // Errors
+                error: 'Error',
+                warning: 'Warning',
+                // VPN
+                vpnConnected: 'VPN connected',
+                vpnDisconnected: 'VPN disconnected',
+                disconnectVpnFirst: 'Disconnect VPN first',
+                secureConnection: 'Secure connection',
+            }
+        };
+        
+        // Get translation
+        function t(key, params = {}) {
+            let text = i18n[currentLang][key] || i18n['ru'][key] || key;
+            // Replace placeholders like {name}
+            Object.keys(params).forEach(k => {
+                text = text.replace(`{${k}}`, params[k]);
+            });
+            return text;
+        }
+        
+        // Apply language to UI
+        function applyLanguage(lang) {
+            currentLang = lang;
+            document.documentElement.setAttribute('lang', lang);
+            updateUITexts();
+        }
+        
+        // Update all UI texts
+        function updateUITexts() {
+            // Status will update on next status update
+            // Subtitle
+            const subtitle = document.getElementById('activeProfileName');
+            if (subtitle && currentProfiles.length > 0) {
+                updateActiveProfileDisplay();
+            } else if (subtitle) {
+                subtitle.textContent = t('secureConnection');
+            }
+        }
+
+        // Custom confirm dialog
+        function showConfirm(message, title = 'Подтверждение') {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmModal');
+                const titleEl = document.getElementById('confirmTitle');
+                const messageEl = document.getElementById('confirmMessage');
+                const okBtn = document.getElementById('confirmOk');
+                const cancelBtn = document.getElementById('confirmCancel');
+                
+                titleEl.textContent = title;
+                messageEl.textContent = message;
+                modal.classList.add('active');
+                
+                const cleanup = () => {
+                    modal.classList.remove('active');
+                    okBtn.removeEventListener('click', onOk);
+                    cancelBtn.removeEventListener('click', onCancel);
+                };
+                
+                const onOk = () => { cleanup(); resolve(true); };
+                const onCancel = () => { cleanup(); resolve(false); };
+                
+                okBtn.addEventListener('click', onOk);
+                cancelBtn.addEventListener('click', onCancel);
+            });
+        }
+
+        // Favicon templates
+        const faviconGray = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%234a5568'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
+        const faviconGreen = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2322c55e'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
+        const faviconOrange = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23f59e0b'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
+
+        function setFavicon(status) {
+            const oldLink = document.getElementById('favicon');
+            const newLink = document.createElement('link');
+            newLink.id = 'favicon'; newLink.rel = 'icon'; newLink.type = 'image/svg+xml';
+            const logo = document.querySelector('.logo');
+            
+            if (status === 'connected') {
+                newLink.href = faviconGreen;
+                document.title = '🟢 Kampus VPN - Подключено';
+                if (logo) logo.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+            } else if (status === 'connecting') {
+                newLink.href = faviconOrange;
+                document.title = '🟡 Kampus VPN - Подключение...';
+                if (logo) logo.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+            } else {
+                newLink.href = faviconGray;
+                document.title = 'Kampus VPN';
+                if (logo) logo.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
+            
+            if (oldLink && oldLink.parentNode) oldLink.parentNode.removeChild(oldLink);
+            document.head.appendChild(newLink);
+        }
+
+        async function updateStatus() {
+            try {
+                const status = await go.main.App.GetStatus();
+                const btn = document.getElementById('powerBtn');
+                const statusEl = document.getElementById('status');
+                const errorEl = document.getElementById('error');
+                const serversPanel = document.getElementById('serversPanel');
+                const profileLogo = document.getElementById('profileLogo');
+                
+                isVpnRunning = status.running;
+                updateBadgesState();
+                
+                // Update profile logo state
+                if (profileLogo) {
+                    if (status.running) {
+                        profileLogo.classList.add('disabled');
+                        profileLogo.title = 'Отключите VPN для смены профиля';
+                    } else {
+                        profileLogo.classList.remove('disabled');
+                        profileLogo.title = 'Выбрать профиль';
+                    }
+                }
+                
+                if (status.running) {
+                    btn.classList.add('active');
+                    statusEl.textContent = 'Подключено';
+                    statusEl.className = 'status connected';
+                    errorEl.innerHTML = '';
+                    setFavicon('connected');
+                    serversPanel.style.display = 'block';
+                    // Загружаем серверы с задержкой чтобы API успел запуститься
+                    setTimeout(() => updateServersPanel(), 500);
+                } else {
+                    btn.classList.remove('active');
+                    statusEl.textContent = 'Отключено';
+                    statusEl.className = 'status disconnected';
+                    setFavicon('disconnected');
+                    serversPanel.style.display = 'none';
+                    stopPingUpdates();
+                }
+                
+                if (!status.singboxExists) {
+                    errorEl.innerHTML = '<div class="error">⚠️ sing-box не найден</div>';
+                }
+                
+                btn.disabled = false;
+                isConnecting = false;
+                document.body.classList.remove('connecting');
+            } catch (e) {
+                console.error('Error updating status:', e);
+            }
+        }
+
+        // Servers management
+        let allServers = [];
+        let currentProxy = '';
+        let pingUpdateInterval = null;
+        let isAppVisible = true;
+        let isPingLoading = false;
+        const MAX_VISIBLE_SERVERS = 3;
+        const PING_UPDATE_INTERVAL = 15000; // 15 секунд
+
+        // Отслеживаем видимость приложения
+        document.addEventListener('visibilitychange', () => {
+            isAppVisible = !document.hidden;
+            if (isAppVisible && isVpnRunning) {
+                // Сразу обновляем при возврате в приложение
+                updateServersPanel();
+                startPingUpdates();
+            } else {
+                stopPingUpdates();
+            }
+        });
+
+        function startPingUpdates() {
+            if (pingUpdateInterval) return;
+            // Сразу обновляем
+            updateServersPanel();
+            // Запускаем интервал
+            pingUpdateInterval = setInterval(() => {
+                if (isAppVisible && isVpnRunning && !isPingLoading) {
+                    updateServersPanel();
+                }
+            }, PING_UPDATE_INTERVAL);
+        }
+
+        function stopPingUpdates() {
+            if (pingUpdateInterval) {
+                clearInterval(pingUpdateInterval);
+                pingUpdateInterval = null;
+            }
+        }
+
+        async function updateServersPanel() {
+            console.log('[updateServersPanel] Starting...');
+            if (isPingLoading) {
+                console.log('[updateServersPanel] Already loading, skipping');
+                return;
+            }
+            
+            // Проверяем доступность функции
+            if (!window.go || !window.go.main || !window.go.main.App || !window.go.main.App.TestAllProxiesDelay) {
+                console.log('[updateServersPanel] Wails runtime not ready, retrying in 500ms...');
+                setTimeout(() => updateServersPanel(), 500);
+                return;
+            }
+            
+            isPingLoading = true;
+            
+            try {
+                console.log('[updateServersPanel] Calling TestAllProxiesDelay...');
+                const result = await window.go.main.App.TestAllProxiesDelay();
+                console.log('[updateServersPanel] Result:', JSON.stringify(result));
+                if (!result.success) {
+                    console.log('[updateServersPanel] Result not successful');
+                    return;
+                }
+
+                allServers = result.proxies || [];
+                currentProxy = result.currentProxy || '';
+                console.log('[updateServersPanel] Got', allServers.length, 'servers, current:', currentProxy);
+
+                // Сортируем: сначала активный, потом по пингу
+                allServers.sort((a, b) => {
+                    if (a.name === currentProxy) return -1;
+                    if (b.name === currentProxy) return 1;
+                    if (a.delay === 0) return 1;
+                    if (b.delay === 0) return -1;
+                    return a.delay - b.delay;
+                });
+
+                renderServersList();
+                renderServersModal();
+            } catch (e) {
+                console.error('Error updating servers:', e);
+            } finally {
+                isPingLoading = false;
+            }
+        }
+
+        function renderServersList() {
+            const list = document.getElementById('serversList');
+            const showAllBtn = document.getElementById('showAllServersBtn');
+            const totalCount = document.getElementById('totalServersCount');
+
+            const visibleServers = allServers.slice(0, MAX_VISIBLE_SERVERS);
+            
+            list.innerHTML = visibleServers.map(server => createServerItem(server)).join('');
+
+            if (allServers.length > MAX_VISIBLE_SERVERS) {
+                showAllBtn.style.display = 'block';
+                totalCount.textContent = allServers.length;
+            } else {
+                showAllBtn.style.display = 'none';
+            }
+        }
+
+        function renderServersModal() {
+            const list = document.getElementById('serversModalList');
+            if (list) {
+                list.innerHTML = allServers.map(server => createServerItem(server)).join('');
+            }
+        }
+
+        function createServerItem(server) {
+            const isActive = server.name === currentProxy;
+            const isInternal = server.isInternal || false;
+            let pingClass, pingText;
+            
+            if (server.delay === -1) {
+                // WireGuard активен но пинг не измеряется
+                pingClass = 'ping-active';
+                pingText = 'Активен';
+            } else if (server.delay > 0) {
+                pingClass = getPingClass(server.delay);
+                pingText = `${server.delay} ms`;
+            } else {
+                pingClass = 'ping-timeout';
+                pingText = '---';
+            }
+            
+            const displayName = formatServerName(server.name);
+            
+            return `
+                <div class="server-item ${isActive ? 'active' : ''} ${isInternal ? 'internal' : ''}">
+                    <span class="server-name" title="${server.name}">${displayName}</span>
+                    <span class="server-ping ${pingClass}">${pingText}</span>
+                </div>
+            `;
+        }
+
+        function formatServerName(name) {
+            // Убираем префиксы типа "-Marz-" и суффиксы типа "---tcp"
+            let formatted = name
+                .replace(/^-+/, '')
+                .replace(/-+$/, '')
+                .replace(/---/g, ' - ')
+                .replace(/--/g, ' ')
+                .replace(/-/g, ' ');
+            
+            // Ограничиваем длину
+            if (formatted.length > 28) {
+                formatted = formatted.substring(0, 25) + '...';
+            }
+            return formatted;
+        }
+
+        function getPingClass(delay) {
+            if (delay === 0) return 'timeout';
+            if (delay < 150) return 'good';
+            if (delay < 400) return 'medium';
+            return 'bad';
+        }
+
+        function openServersModal() {
+            renderServersModal();
+            document.getElementById('serversModal').classList.add('active');
+        }
+
+        function updateBadgesState() {
+            const vpnBadge = document.getElementById('vpnBadge');
+            const wgBadge = document.getElementById('wgBadge');
+            const settingsBtn = document.getElementById('settingsBtn');
+            
+            if (isVpnRunning) {
+                vpnBadge.classList.add('disabled');
+                wgBadge.classList.add('disabled');
+                settingsBtn.classList.add('disabled');
+                settingsBtn.title = 'Отключите VPN для изменения настроек';
+            } else {
+                vpnBadge.classList.remove('disabled');
+                wgBadge.classList.remove('disabled');
+                settingsBtn.classList.remove('disabled');
+                settingsBtn.title = '';
+            }
+        }
+
+        async function updateSubscriptionBadge() {
+            try {
+                const sub = await go.main.App.GetCurrentSubscription();
+                const badge = document.getElementById('vpnBadge');
+                currentSubscription = sub;
+                
+                if (sub.hasSubscription) {
+                    badge.classList.remove('no-sub');
+                    badge.innerHTML = `<span>🔗 VPN: ${sub.proxyCount} серверов</span><span class="tooltip">Сначала отключите VPN</span>`;
+                } else {
+                    badge.classList.add('no-sub');
+                    badge.innerHTML = '<span>⚡ Добавить VPN</span><span class="tooltip">Сначала отключите VPN</span>';
+                }
+            } catch (e) {
+                console.error('Error updating subscription badge:', e);
+            }
+        }
+
+        async function updateWireGuardBadge() {
+            try {
+                const result = await go.main.App.GetWireGuardList();
+                const badge = document.getElementById('wgBadge');
+                wireGuardConfigs = result.configs || [];
+                
+                if (wireGuardConfigs.length > 0) {
+                    badge.classList.remove('no-wg');
+                    badge.innerHTML = `<span>🏢 Рабочие сети: ${wireGuardConfigs.length}</span><span class="tooltip">Сначала отключите VPN</span>`;
+                } else {
+                    badge.classList.add('no-wg');
+                    badge.innerHTML = '<span>🏢 Рабочие сети: 0</span><span class="tooltip">Сначала отключите VPN</span>';
+                }
+            } catch (e) {
+                console.error('Error updating WireGuard badge:', e);
+            }
+        }
+
+        async function toggle() {
+            if (isConnecting) return;
+            
+            // Check if VPN subscription exists
+            if (!currentSubscription?.hasSubscription && !isVpnRunning) {
+                showError('Добавьте VPN для работы приложения');
+                return;
+            }
+            
+            const btn = document.getElementById('powerBtn');
+            const statusEl = document.getElementById('status');
+            const errorEl = document.getElementById('error');
+            
+            isConnecting = true;
+            btn.disabled = true;
+            statusEl.textContent = 'Подключение...';
+            statusEl.className = 'status connecting';
+            document.body.classList.add('connecting');
+            errorEl.innerHTML = '';
+            setFavicon('connecting');
+            
+            try {
+                const result = await go.main.App.Toggle();
+                if (!result.success && result.error) {
+                    errorEl.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (e) {
+                errorEl.innerHTML = `<div class="error">❌ Ошибка: ${e.message}</div>`;
+            }
+            
+            // Даём время на запуск Clash API (2 сек)
+            setTimeout(async () => {
+                await updateStatus();
+                // Запускаем периодическое обновление пингов если подключены
+                if (isVpnRunning) {
+                    startPingUpdates();
+                }
+            }, 2000);
+        }
+
+        function showError(msg) {
+            document.getElementById('error').innerHTML = `<div class="error">⚠️ ${msg}</div>`;
+            setTimeout(() => { document.getElementById('error').innerHTML = ''; }, 3000);
+        }
+
+        // Badge click handlers
+        function handleVpnBadgeClick() {
+            if (isVpnRunning) return;
+            openVpnModal();
+        }
+
+        function handleWgBadgeClick() {
+            if (isVpnRunning) return;
+            openWgListModal();
+        }
+
+        // VPN Modal
+        function openVpnModal() {
+            const input = document.getElementById('subscriptionInput');
+            const currentSubDiv = document.getElementById('currentSub');
+            const currentSubUrl = document.getElementById('currentSubUrl');
+            const removeBtn = document.getElementById('removeVpnBtn');
+            
+            resetVpnModalState();
+            
+            if (currentSubscription && currentSubscription.hasSubscription) {
+                currentSubDiv.style.display = 'block';
+                currentSubUrl.textContent = truncateUrl(currentSubscription.url);
+                removeBtn.style.display = 'inline-block';
+                input.value = currentSubscription.url;
+            } else {
+                currentSubDiv.style.display = 'none';
+                removeBtn.style.display = 'none';
+                input.value = '';
+            }
+            
+            document.getElementById('vpnModal').classList.add('active');
+            input.focus();
+        }
+
+        function resetVpnModalState() {
+            document.getElementById('vpnModalStatus').className = 'modal-status';
+            document.getElementById('vpnModalStatus').textContent = '';
+            document.getElementById('proxyList').style.display = 'none';
+            document.getElementById('saveVpnBtn').style.display = 'none';
+            document.getElementById('testVpnBtn').style.display = 'inline-block';
+            testedVpnUrl = null;
+        }
+
+        async function testSubscription() {
+            const url = document.getElementById('subscriptionInput').value.trim();
+            if (!url) { showVpnModalStatus('error', 'Введите ссылку на подписку'); return; }
+            
+            showVpnModalStatus('loading', 'Проверка подключения...');
+            document.getElementById('testVpnBtn').disabled = true;
+            
+            try {
+                const result = await go.main.App.TestVPNConnection(url);
+                if (result.success) {
+                    testedVpnUrl = url;
+                    showVpnModalStatus('success', `✅ Найдено ${result.count} серверов`);
+                    
+                    const proxyList = document.getElementById('proxyList');
+                    proxyList.innerHTML = result.proxies.map(p => 
+                        `<div class="proxy-item"><span class="type">${p.type}</span><span>${p.name || p.server}</span></div>`
+                    ).join('');
+                    proxyList.style.display = 'block';
+                    
+                    document.getElementById('testVpnBtn').style.display = 'none';
+                    document.getElementById('saveVpnBtn').style.display = 'inline-block';
+                } else {
+                    showVpnModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showVpnModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+            document.getElementById('testVpnBtn').disabled = false;
+        }
+
+        async function saveSubscription() {
+            if (!testedVpnUrl) return;
+            showVpnModalStatus('loading', 'Сохранение...');
+            document.getElementById('saveVpnBtn').disabled = true;
+            
+            try {
+                const result = await go.main.App.SetVPNSubscription(testedVpnUrl);
+                if (result.success) {
+                    showVpnModalStatus('success', `✅ Сохранено! ${result.proxyCount} серверов`);
+                    await updateSubscriptionBadge();
+                    setTimeout(() => closeModal('vpnModal'), 1000);
+                } else {
+                    showVpnModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showVpnModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+            document.getElementById('saveVpnBtn').disabled = false;
+        }
+
+        async function removeSubscription() {
+            const confirmed = await showConfirm('Удалить текущую подписку?', 'Удаление подписки');
+            if (!confirmed) return;
+            showVpnModalStatus('loading', 'Удаление...');
+            
+            try {
+                const result = await go.main.App.RemoveVPNSubscription();
+                if (result.success) {
+                    showVpnModalStatus('success', '✅ Подписка удалена');
+                    await updateSubscriptionBadge();
+                    document.getElementById('subscriptionInput').value = '';
+                    document.getElementById('currentSub').style.display = 'none';
+                    document.getElementById('removeVpnBtn').style.display = 'none';
+                    setTimeout(() => closeModal('vpnModal'), 1000);
+                } else {
+                    showVpnModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showVpnModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+        }
+
+        function showVpnModalStatus(type, message) {
+            const status = document.getElementById('vpnModalStatus');
+            status.className = `modal-status ${type}`;
+            status.textContent = message;
+        }
+
+        // WireGuard List Modal
+        async function openWgListModal() {
+            await updateWireGuardList();
+            document.getElementById('wgListModal').classList.add('active');
+        }
+
+        async function updateWireGuardList() {
+            try {
+                const result = await go.main.App.GetWireGuardList();
+                wireGuardConfigs = result.configs || [];
+                
+                const listEl = document.getElementById('wgList');
+                if (wireGuardConfigs.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state">Нет добавленных WireGuard конфигов</div>';
+                } else {
+                    listEl.innerHTML = wireGuardConfigs.map(wg => `
+                        <div class="wg-item" onclick="editWireGuard('${wg.tag}')">
+                            <div>
+                                <span class="tag">${wg.tag}</span>
+                                <span style="margin-left: 8px; color: #6b7280;">${wg.name || ''}</span>
+                            </div>
+                            <div class="actions">
+                                <button class="edit" onclick="event.stopPropagation(); editWireGuard('${wg.tag}')">✏️</button>
+                                <button class="delete" onclick="event.stopPropagation(); confirmDeleteWg('${wg.tag}')">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Error loading WireGuard list:', e);
+            }
+        }
+
+        function openAddWgModal() {
+            editingWgTag = null;
+            document.getElementById('wgEditTitle').textContent = '➕ Добавить WireGuard';
+            document.getElementById('wgTag').value = '';
+            document.getElementById('wgName').value = '';
+            document.getElementById('wgConfig').value = '';
+            document.getElementById('deleteWgBtn').style.display = 'none';
+            document.getElementById('saveWgBtn').style.display = 'none';
+            document.getElementById('parseWgBtn').style.display = 'inline-block';
+            document.getElementById('wgModalStatus').className = 'modal-status';
+            document.getElementById('wgEditModal').classList.add('active');
+        }
+
+        async function editWireGuard(tag) {
+            try {
+                const result = await go.main.App.GetWireGuardConfig(tag);
+                if (!result.success) {
+                    alert(result.error);
+                    return;
+                }
+                
+                editingWgTag = tag;
+                document.getElementById('wgEditTitle').textContent = '✏️ Редактировать WireGuard';
+                document.getElementById('wgTag').value = result.tag;
+                document.getElementById('wgName').value = result.name || '';
+                
+                // Reconstruct config text
+                let config = `[Interface]\nPrivateKey = ${result.private_key}\nAddress = ${result.local_address.join(', ')}`;
+                if (result.dns) config += `\nDNS = ${result.dns}`;
+                if (result.mtu) config += `\nMTU = ${result.mtu}`;
+                config += `\n\n[Peer]\nPublicKey = ${result.public_key}`;
+                if (result.preshared_key) config += `\nPresharedKey = ${result.preshared_key}`;
+                config += `\nAllowedIPs = ${result.allowed_ips.join(', ')}`;
+                config += `\nEndpoint = ${result.endpoint}`;
+                if (result.persistent_keepalive) config += `\nPersistentKeepalive = ${result.persistent_keepalive}`;
+                
+                document.getElementById('wgConfig').value = config;
+                document.getElementById('deleteWgBtn').style.display = 'inline-block';
+                document.getElementById('saveWgBtn').style.display = 'none';
+                document.getElementById('parseWgBtn').style.display = 'inline-block';
+                document.getElementById('wgModalStatus').className = 'modal-status';
+                document.getElementById('wgEditModal').classList.add('active');
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function parseWireGuard() {
+            const tag = document.getElementById('wgTag').value.trim();
+            const config = document.getElementById('wgConfig').value.trim();
+            
+            if (!tag) { showWgModalStatus('error', 'Введите тег'); return; }
+            if (!config) { showWgModalStatus('error', 'Вставьте WireGuard конфиг'); return; }
+            
+            // Validate tag
+            if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(tag)) {
+                showWgModalStatus('error', 'Тег должен начинаться с буквы и содержать только латинские буквы, цифры, дефис или подчёркивание');
+                return;
+            }
+            
+            showWgModalStatus('loading', 'Проверка конфига...');
+            
+            try {
+                const result = await go.main.App.ParseWireGuardConfigAPI(config);
+                if (result.success) {
+                    showWgModalStatus('success', `✅ Конфиг валиден. Endpoint: ${result.endpoint}`);
+                    document.getElementById('parseWgBtn').style.display = 'none';
+                    document.getElementById('saveWgBtn').style.display = 'inline-block';
+                } else {
+                    showWgModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showWgModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+        }
+
+        async function saveWireGuard() {
+            const tag = document.getElementById('wgTag').value.trim();
+            const name = document.getElementById('wgName').value.trim();
+            const config = document.getElementById('wgConfig').value.trim();
+            
+            showWgModalStatus('loading', 'Сохранение...');
+            
+            try {
+                let result;
+                if (editingWgTag) {
+                    result = await go.main.App.UpdateWireGuard(editingWgTag, tag, name, config);
+                } else {
+                    result = await go.main.App.AddWireGuard(tag, name, config);
+                }
+                
+                if (result.success) {
+                    showWgModalStatus('success', '✅ Сохранено!');
+                    await updateWireGuardBadge();
+                    await updateWireGuardList();
+                    setTimeout(() => closeWgEditModal(), 1000);
+                } else {
+                    showWgModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showWgModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+        }
+
+        async function confirmDeleteWg(tag) {
+            const confirmed = await showConfirm(`Удалить рабочую сеть "${tag}"?`, 'Удаление сети');
+            if (!confirmed) return;
+            
+            try {
+                const result = await go.main.App.DeleteWireGuard(tag);
+                if (result.success) {
+                    await updateWireGuardBadge();
+                    await updateWireGuardList();
+                } else {
+                    alert(result.error);
+                }
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function deleteWireGuard() {
+            if (!editingWgTag) return;
+            const confirmed = await showConfirm(`Удалить рабочую сеть "${editingWgTag}"?`, 'Удаление сети');
+            if (!confirmed) return;
+            
+            try {
+                const result = await go.main.App.DeleteWireGuard(editingWgTag);
+                if (result.success) {
+                    await updateWireGuardBadge();
+                    await updateWireGuardList();
+                    closeWgEditModal();
+                } else {
+                    showWgModalStatus('error', `❌ ${result.error}`);
+                }
+            } catch (e) {
+                showWgModalStatus('error', `❌ Ошибка: ${e.message}`);
+            }
+        }
+
+        function closeWgEditModal() {
+            document.getElementById('wgEditModal').classList.remove('active');
+            editingWgTag = null;
+        }
+
+        function showWgModalStatus(type, message) {
+            const status = document.getElementById('wgModalStatus');
+            status.className = `modal-status ${type}`;
+            status.textContent = message;
+        }
+
+        // About Modal
+        async function openAbout() {
+            document.getElementById('aboutModal').classList.add('active');
+            try {
+                const version = await go.main.App.GetVersion();
+                document.getElementById('aboutSingboxVersion').textContent = version;
+                const appVersion = await go.main.App.GetAppVersion();
+                if (appVersion.success) {
+                    document.getElementById('aboutVersion').textContent = 'v' + appVersion.version;
+                }
+            } catch (e) {
+                document.getElementById('aboutSingboxVersion').textContent = 'неизвестно';
+            }
+        }
+
+        // ==================== Settings ====================
+        async function openSettings() {
+            // Блокируем настройки при активном VPN
+            if (isVpnRunning) {
+                showToast('warning', 'Отключите VPN для изменения настроек');
+                return;
+            }
+            
+            try {
+                const config = await go.main.App.GetAppConfig();
+                if (config.success) {
+                    appConfig = config;
+                    document.getElementById('settingAutoStart').checked = config.autoStart;
+                    document.getElementById('settingNotifications').checked = config.notifications;
+                    document.getElementById('settingCheckUpdates').checked = config.checkUpdates;
+                    document.getElementById('settingAutoUpdateSub').checked = config.autoUpdateSub;
+                    document.getElementById('settingEnableLogging').checked = config.enableLogging;
+                    document.getElementById('settingTheme').value = config.theme || 'dark';
+                    document.getElementById('settingLanguage').value = config.language || 'ru';
+                }
+            } catch (e) {
+                console.error('Error loading settings:', e);
+            }
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        async function saveSettings() {
+            try {
+                const autoStart = document.getElementById('settingAutoStart').checked;
+                const notifications = document.getElementById('settingNotifications').checked;
+                const checkUpdates = document.getElementById('settingCheckUpdates').checked;
+                const autoUpdateSub = document.getElementById('settingAutoUpdateSub').checked;
+                const enableLogging = document.getElementById('settingEnableLogging').checked;
+                const theme = document.getElementById('settingTheme').value;
+                const language = document.getElementById('settingLanguage').value;
+                
+                const result = await go.main.App.SaveAppConfig(
+                    autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, 24
+                );
+                
+                if (result.success) {
+                    showToast('success', t('settingsSaved'));
+                    closeModal('settingsModal');
+                    applyTheme(theme);
+                    applyLanguage(language);
+                } else {
+                    showToast('error', result.error || t('error'));
+                }
+            } catch (e) {
+                showToast('error', t('error') + ': ' + e.message);
+            }
+        }
+        
+        // Apply theme to UI
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'system') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+            }
+        }
+
+        // ==================== Template Editor ====================
+        async function openTemplateEditor() {
+            const statusEl = document.getElementById('templateModalStatus');
+            statusEl.className = 'modal-status loading';
+            statusEl.textContent = 'Загрузка...';
+            statusEl.style.display = 'block';
+            
+            document.getElementById('templateModal').classList.add('active');
+            
+            try {
+                const result = await go.main.App.GetTemplateContent();
+                if (result.success) {
+                    document.getElementById('templateEditor').value = result.content;
+                    statusEl.style.display = 'none';
+                } else {
+                    statusEl.className = 'modal-status error';
+                    statusEl.textContent = result.error || 'Не удалось загрузить template.json';
+                }
+            } catch (e) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Ошибка: ' + e.message;
+            }
+        }
+
+        async function saveTemplate() {
+            const statusEl = document.getElementById('templateModalStatus');
+            const content = document.getElementById('templateEditor').value;
+            
+            // Validate JSON before saving
+            try {
+                JSON.parse(content);
+            } catch (e) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Некорректный JSON: ' + e.message;
+                statusEl.style.display = 'block';
+                return;
+            }
+            
+            statusEl.className = 'modal-status loading';
+            statusEl.textContent = 'Сохранение...';
+            statusEl.style.display = 'block';
+            
+            try {
+                const result = await go.main.App.SaveTemplateContent(content);
+                if (result.success) {
+                    statusEl.className = 'modal-status success';
+                    statusEl.textContent = 'Template сохранён. Изменения применятся после переподключения VPN.';
+                    setTimeout(() => {
+                        closeModal('templateModal');
+                        showToast('success', 'Template.json сохранён');
+                    }, 1500);
+                } else {
+                    statusEl.className = 'modal-status error';
+                    statusEl.textContent = result.error || 'Ошибка сохранения';
+                }
+            } catch (e) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Ошибка: ' + e.message;
+            }
+        }
+
+        async function resetTemplate() {
+            const confirmed = await showConfirm(
+                'Вы уверены, что хотите сбросить template.json к оригинальному состоянию? Все ваши изменения будут потеряны.',
+                'Сброс Template'
+            );
+            
+            if (!confirmed) return;
+            
+            const statusEl = document.getElementById('templateModalStatus');
+            statusEl.className = 'modal-status loading';
+            statusEl.textContent = 'Сброс...';
+            statusEl.style.display = 'block';
+            
+            try {
+                const result = await go.main.App.ResetTemplate();
+                if (result.success) {
+                    // Reload the template content
+                    const loadResult = await go.main.App.GetTemplateContent();
+                    if (loadResult.success) {
+                        document.getElementById('templateEditor').value = loadResult.content;
+                    }
+                    statusEl.className = 'modal-status success';
+                    statusEl.textContent = 'Template сброшен к оригинальному состоянию';
+                    showToast('success', 'Template.json сброшен');
+                } else {
+                    statusEl.className = 'modal-status error';
+                    statusEl.textContent = result.error || 'Ошибка сброса';
+                }
+            } catch (e) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Ошибка: ' + e.message;
+            }
+        }
+
+        // ==================== Stats ====================
+        // Speed history for chart (last 30 data points)
+        const speedHistory = {
+            upload: new Array(30).fill(0),
+            download: new Array(30).fill(0),
+            lastUpload: 0,
+            lastDownload: 0
+        };
+        
+        async function openStats() {
+            await updateStats();
+            drawCharts();
+            document.getElementById('statsModal').classList.add('active');
+            // Update stats every 2 seconds while modal is open
+            statsUpdateInterval = setInterval(async () => {
+                await updateStats();
+                drawCharts();
+            }, 2000);
+        }
+
+        async function updateStats() {
+            try {
+                // Сначала обновляем трафик из Clash API (если VPN запущен)
+                if (isVpnRunning) {
+                    await go.main.App.UpdateTrafficFromClash();
+                }
+                
+                const stats = await go.main.App.GetTrafficStats();
+                if (stats.success) {
+                    // Calculate speed (difference from last update)
+                    const currentUpload = stats.current.uploaded || 0;
+                    const currentDownload = stats.current.downloaded || 0;
+                    
+                    const uploadSpeed = Math.max(0, currentUpload - speedHistory.lastUpload);
+                    const downloadSpeed = Math.max(0, currentDownload - speedHistory.lastDownload);
+                    
+                    // Update history
+                    speedHistory.upload.shift();
+                    speedHistory.upload.push(uploadSpeed / 2); // per second (2s interval)
+                    speedHistory.download.shift();
+                    speedHistory.download.push(downloadSpeed / 2);
+                    speedHistory.lastUpload = currentUpload;
+                    speedHistory.lastDownload = currentDownload;
+                    
+                    // Current session
+                    document.getElementById('statCurrentUpload').textContent = stats.current.uploadedStr;
+                    document.getElementById('statCurrentDownload').textContent = stats.current.downloadedStr;
+                    document.getElementById('statCurrentDuration').textContent = stats.current.durationStr;
+                    
+                    // Total
+                    document.getElementById('statTotalUpload').textContent = stats.total.uploadedStr;
+                    document.getElementById('statTotalDownload').textContent = stats.total.downloadedStr;
+                    document.getElementById('statTotalDuration').textContent = stats.total.durationStr;
+                    document.getElementById('statTotalSessions').textContent = stats.total.sessions;
+                }
+            } catch (e) {
+                console.error('Error updating stats:', e);
+            }
+        }
+        
+        function drawCharts() {
+            drawSpeedChart();
+            drawTrafficChart();
+        }
+        
+        function drawSpeedChart() {
+            const canvas = document.getElementById('speedChart');
+            if (!canvas) return;
+            
+            // Set canvas size to match container
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth - 24; // padding
+            canvas.width = containerWidth;
+            canvas.height = 100;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            
+            // Find max value for scaling
+            const maxSpeed = Math.max(...speedHistory.upload, ...speedHistory.download, 1024); // min 1KB
+            
+            // Draw grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = (height / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+            
+            // Draw download line (blue)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            speedHistory.download.forEach((val, i) => {
+                const x = (width / (speedHistory.download.length - 1)) * i;
+                const y = height - (val / maxSpeed) * (height - 10);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            
+            // Draw upload line (green)
+            ctx.strokeStyle = '#22c55e';
+            ctx.beginPath();
+            speedHistory.upload.forEach((val, i) => {
+                const x = (width / (speedHistory.upload.length - 1)) * i;
+                const y = height - (val / maxSpeed) * (height - 10);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            
+            // Legend
+            ctx.font = '10px sans-serif';
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText('↑ ' + formatSpeed(speedHistory.upload[speedHistory.upload.length - 1]), 5, 12);
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillText('↓ ' + formatSpeed(speedHistory.download[speedHistory.download.length - 1]), 80, 12);
+        }
+        
+        function drawTrafficChart() {
+            const canvas = document.getElementById('trafficChart');
+            if (!canvas) return;
+            
+            // Set canvas size to match container
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth - 24; // padding
+            canvas.width = containerWidth;
+            canvas.height = 80;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Get current stats
+            const uploadEl = document.getElementById('statCurrentUpload');
+            const downloadEl = document.getElementById('statCurrentDownload');
+            const uploadText = uploadEl ? uploadEl.textContent : '0 B';
+            const downloadText = downloadEl ? downloadEl.textContent : '0 B';
+            
+            // Parse values (approximate)
+            const upload = parseTrafficValue(uploadText);
+            const download = parseTrafficValue(downloadText);
+            const total = upload + download || 1;
+            
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw bar chart
+            const barHeight = 25;
+            const gap = 10;
+            
+            // Upload bar
+            ctx.fillStyle = 'rgba(34,197,94,0.2)';
+            ctx.fillRect(0, 0, width, barHeight);
+            ctx.fillStyle = '#22c55e';
+            ctx.fillRect(0, 0, (upload / total) * width, barHeight);
+            ctx.fillStyle = '#fff';
+            ctx.font = '11px sans-serif';
+            ctx.fillText('↑ ' + uploadText, 8, barHeight - 8);
+            
+            // Download bar
+            ctx.fillStyle = 'rgba(59,130,246,0.2)';
+            ctx.fillRect(0, barHeight + gap, width, barHeight);
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(0, barHeight + gap, (download / total) * width, barHeight);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('↓ ' + downloadText, 8, barHeight + gap + barHeight - 8);
+        }
+        
+        function formatSpeed(bytesPerSec) {
+            if (bytesPerSec < 1024) return bytesPerSec.toFixed(0) + ' B/s';
+            if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + ' KB/s';
+            return (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+        }
+        
+        function parseTrafficValue(str) {
+            const num = parseFloat(str) || 0;
+            if (str.includes('GB')) return num * 1024 * 1024 * 1024;
+            if (str.includes('MB')) return num * 1024 * 1024;
+            if (str.includes('KB')) return num * 1024;
+            return num;
+        }
+
+        async function resetStats() {
+            const confirmed = await showConfirm('Сбросить всю статистику?', 'Сброс статистики');
+            if (!confirmed) return;
+            
+            try {
+                const result = await go.main.App.ResetTrafficStats();
+                if (result.success) {
+                    showToast('success', 'Статистика сброшена');
+                    await updateStats();
+                }
+            } catch (e) {
+                showToast('error', 'Ошибка: ' + e.message);
+            }
+        }
+
+        // ==================== Logs Modal ====================
+        async function openLogsModal() {
+            await updateLogsModal();
+            document.getElementById('logsModal').classList.add('active');
+        }
+
+        async function updateLogsModal() {
+            try {
+                const result = await go.main.App.GetLogs(100);
+                const container = document.getElementById('logsContainer');
+                
+                if (result.success && result.logs && result.logs.length > 0) {
+                    container.innerHTML = result.logs.map(log => {
+                        let className = 'log-entry';
+                        if (log.toLowerCase().includes('error') || log.toLowerCase().includes('ошибка')) {
+                            className += ' error';
+                        } else if (log.toLowerCase().includes('success') || log.toLowerCase().includes('запущен')) {
+                            className += ' success';
+                        }
+                        return `<div class="${className}">${escapeHtml(log)}</div>`;
+                    }).join('');
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    container.innerHTML = '<div class="logs-empty">Нет записей</div>';
+                }
+            } catch (e) {
+                console.error('Error loading logs:', e);
+            }
+        }
+
+        async function clearLogs() {
+            try {
+                await go.main.App.ClearLogs();
+                await updateLogsModal();
+                showToast('success', 'Логи очищены');
+            } catch (e) {
+                showToast('error', 'Ошибка: ' + e.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== Updates ====================
+        async function checkForUpdates() {
+            try {
+                const result = await go.main.App.CheckForUpdates();
+                if (result.success && result.hasUpdate) {
+                    updateInfo = result;
+                    showUpdateBanner(result.latestVersion);
+                }
+            } catch (e) {
+                console.error('Error checking for updates:', e);
+            }
+        }
+
+        function showUpdateBanner(version) {
+            document.getElementById('updateVersion').textContent = 'v' + version;
+            document.getElementById('updateBanner').classList.add('show');
+        }
+
+        function hideUpdateBanner() {
+            document.getElementById('updateBanner').classList.remove('show');
+        }
+
+        function openUpdateLink() {
+            if (updateInfo && updateInfo.releaseURL) {
+                window.open(updateInfo.releaseURL, '_blank');
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function openUpdateModal() {
+            if (!updateInfo) return;
+            
+            document.getElementById('updateCurrentVersion').textContent = 'v' + updateInfo.currentVersion;
+            document.getElementById('updateNewVersion').textContent = 'v' + updateInfo.latestVersion;
+            document.getElementById('updateFileSize').textContent = updateInfo.fileSize ? formatFileSize(updateInfo.fileSize) : '-';
+            document.getElementById('updatePublishedAt').textContent = updateInfo.publishedAt || '-';
+            
+            const notes = document.getElementById('updateNotes');
+            if (updateInfo.releaseNotes) {
+                notes.textContent = updateInfo.releaseNotes;
+                notes.style.display = 'block';
+            } else {
+                notes.style.display = 'none';
+            }
+            
+            document.getElementById('updateProgress').style.display = 'none';
+            document.getElementById('updateModalStatus').className = 'modal-status';
+            document.getElementById('updateModalStatus').textContent = '';
+            document.getElementById('installUpdateBtn').disabled = false;
+            
+            hideUpdateBanner();
+            openModal('updateModal');
+        }
+
+        async function installUpdate() {
+            if (!updateInfo || !updateInfo.downloadURL) {
+                showUpdateModalStatus('error', 'Нет ссылки на загрузку');
+                return;
+            }
+            
+            // Disable button
+            document.getElementById('installUpdateBtn').disabled = true;
+            document.getElementById('updateProgress').style.display = 'block';
+            showUpdateModalStatus('loading', 'Загрузка обновления...');
+            
+            try {
+                const result = await go.main.App.DownloadAndInstallUpdate(updateInfo.downloadURL);
+                if (result.success) {
+                    showUpdateModalStatus('success', 'Обновление загружено. Приложение перезапустится...');
+                } else {
+                    showUpdateModalStatus('error', result.error || 'Ошибка загрузки');
+                    document.getElementById('installUpdateBtn').disabled = false;
+                }
+            } catch (e) {
+                showUpdateModalStatus('error', 'Ошибка: ' + e.message);
+                document.getElementById('installUpdateBtn').disabled = false;
+            }
+        }
+
+        function showUpdateModalStatus(type, message) {
+            const status = document.getElementById('updateModalStatus');
+            status.className = `modal-status ${type}`;
+            status.textContent = message;
+        }
+
+        // Listen for update progress events
+        if (window.runtime) {
+            window.runtime.EventsOn('update-progress', (progress) => {
+                const fill = document.getElementById('updateProgressFill');
+                const text = document.getElementById('updateProgressText');
+                if (fill) fill.style.width = progress.toFixed(0) + '%';
+                if (text) text.textContent = 'Загрузка: ' + progress.toFixed(0) + '%';
+            });
+        }
+
+        // ==================== QR Scanner ====================
+        let qrCameraStream = null;
+        let qrScanInterval = null;
+
+        function openQRScanner() {
+            closeModal('vpnModal');
+            document.getElementById('qrModalStatus').className = 'modal-status';
+            document.getElementById('qrModalStatus').textContent = '';
+            document.getElementById('qrCameraBtn').textContent = '📷 Камера';
+            openModal('qrScannerModal');
+        }
+
+        function closeQRScanner() {
+            stopQRCamera();
+            closeModal('qrScannerModal');
+        }
+
+        async function toggleQRCamera() {
+            if (qrCameraStream) {
+                stopQRCamera();
+            } else {
+                await startQRCamera();
+            }
+        }
+
+        async function startQRCamera() {
+            try {
+                const video = document.getElementById('qrVideo');
+                qrCameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                video.srcObject = qrCameraStream;
+                video.play();
+                
+                document.getElementById('qrCameraBtn').textContent = '⏹️ Стоп';
+                showQRModalStatus('loading', 'Наведите камеру на QR-код...');
+                
+                // Start scanning
+                qrScanInterval = setInterval(() => scanQRFromVideo(), 500);
+            } catch (e) {
+                showQRModalStatus('error', 'Не удалось получить доступ к камере: ' + e.message);
+            }
+        }
+
+        function stopQRCamera() {
+            if (qrCameraStream) {
+                qrCameraStream.getTracks().forEach(track => track.stop());
+                qrCameraStream = null;
+            }
+            if (qrScanInterval) {
+                clearInterval(qrScanInterval);
+                qrScanInterval = null;
+            }
+            const video = document.getElementById('qrVideo');
+            video.srcObject = null;
+            document.getElementById('qrCameraBtn').textContent = '📷 Камера';
+        }
+
+        function scanQRFromVideo() {
+            const video = document.getElementById('qrVideo');
+            const canvas = document.getElementById('qrCanvas');
+            
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = decodeQR(imageData);
+            
+            if (code) {
+                handleQRResult(code);
+            }
+        }
+
+        async function scanQRFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            showQRModalStatus('loading', 'Обработка изображения...');
+            
+            try {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.getElementById('qrCanvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = decodeQR(imageData);
+                    
+                    if (code) {
+                        handleQRResult(code);
+                    } else {
+                        showQRModalStatus('error', 'QR-код не найден на изображении');
+                    }
+                };
+                img.src = URL.createObjectURL(file);
+            } catch (e) {
+                showQRModalStatus('error', 'Ошибка обработки изображения');
+            }
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        function handleQRResult(code) {
+            stopQRCamera();
+            
+            // Check if it looks like a subscription URL
+            if (code.startsWith('http') || code.startsWith('vless://') || 
+                code.startsWith('vmess://') || code.startsWith('trojan://') || 
+                code.startsWith('ss://') || code.startsWith('ssr://')) {
+                showQRModalStatus('success', 'QR-код распознан!');
+                
+                setTimeout(() => {
+                    closeModal('qrScannerModal');
+                    document.getElementById('subscriptionInput').value = code;
+                    openVpnModal();
+                }, 500);
+            } else {
+                showQRModalStatus('error', 'QR-код не содержит ссылку на подписку');
+            }
+        }
+
+        function showQRModalStatus(type, message) {
+            const status = document.getElementById('qrModalStatus');
+            status.className = `modal-status ${type}`;
+            status.textContent = message;
+        }
+
+        // Simple QR decoder using jsQR-like algorithm
+        // For production, use a proper library like jsQR
+        function decodeQR(imageData) {
+            // This is a placeholder - in production you'd use jsQR library
+            // For now, we'll rely on camera scanning with a real library
+            // or add jsQR CDN
+            
+            // Try to use jsQR if available
+            if (typeof jsQR !== 'undefined') {
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                return code ? code.data : null;
+            }
+            
+            // Fallback: can't decode without library
+            return null;
+        }
+
+        // ==================== Notifications / Toast ====================
+        function showToast(type, message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+            toast.innerHTML = `
+                <span class="icon">${icons[type] || 'ℹ️'}</span>
+                <span class="message">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('hide');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showNotification(title, body) {
+            // Check if notifications are enabled
+            if (!appConfig?.notifications) return;
+            
+            // Use toast as fallback
+            showToast('info', body);
+        }
+
+        // Common functions
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+            // Stop stats update interval when closing stats modal
+            if (modalId === 'statsModal' && statsUpdateInterval) {
+                clearInterval(statsUpdateInterval);
+                statsUpdateInterval = null;
+            }
+        }
+
+        function closeModalOnOverlay(event, modalId) {
+            if (event.target.id === modalId) closeModal(modalId);
+        }
+
+        function truncateUrl(url) {
+            if (url.length > 50) return url.substring(0, 25) + '...' + url.substring(url.length - 20);
+            return url;
+        }
+
+        async function openFolder() { try { await go.main.App.OpenConfigFolder(); } catch (e) {} }
+        async function openLogs() { try { await go.main.App.OpenLogs(); } catch (e) {} }
+        
+        // Helper to open modal
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        // Keyboard handlers
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal('vpnModal');
+                closeModal('wgListModal');
+                closeWgEditModal();
+                closeModal('aboutModal');
+                closeModal('settingsModal');
+                closeModal('statsModal');
+                closeModal('logsModal');
+                closeModal('profilesModal');
+                closeModal('profileEditModal');
+                closeQRScanner();
+                closeModal('updateModal');
+            }
+        });
+
+        // Window visibility tracking
+        document.addEventListener('visibilitychange', () => {
+            const visible = !document.hidden;
+            try {
+                go.main.App.SetWindowVisible(visible);
+            } catch (e) {}
+        });
+
+        // Events from backend
+        if (window.runtime) {
+            window.runtime.EventsOn('vpn-status-changed', (running) => {
+                updateStatus();
+                // Show notification
+                if (appConfig?.notifications) {
+                    if (running) {
+                        showToast('success', 'VPN подключен');
+                    } else {
+                        showToast('info', 'VPN отключен');
+                    }
+                }
+            });
+            window.runtime.EventsOn('show-about', () => openAbout());
+        }
+
+        // Load app config on init
+        async function loadAppConfig() {
+            try {
+                const config = await go.main.App.GetAppConfig();
+                if (config.success) {
+                    appConfig = config;
+                    // Apply theme
+                    if (config.theme) {
+                        applyTheme(config.theme);
+                    }
+                    // Apply language
+                    if (config.language) {
+                        applyLanguage(config.language);
+                    }
+                    // Check for updates if enabled
+                    if (config.checkUpdates) {
+                        setTimeout(checkForUpdates, 2000);
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading app config:', e);
+            }
+        }
+
+        // ==================== Profile Functions ====================
+        
+        async function loadProfiles() {
+            try {
+                const result = await go.main.App.GetProfiles();
+                if (result.success) {
+                    currentProfiles = result.profiles || [];
+                    activeProfileId = result.activeProfile || 1;
+                    updateActiveProfileDisplay();
+                }
+            } catch (e) {
+                console.error('Error loading profiles:', e);
+            }
+        }
+        
+        function updateActiveProfileDisplay() {
+            const profile = currentProfiles.find(p => p.id === activeProfileId);
+            const subtitle = document.getElementById('activeProfileName');
+            if (profile && subtitle) {
+                subtitle.textContent = `Профиль: ${profile.name}`;
+            }
+        }
+        
+        function openProfilesModal() {
+            // Don't allow opening profiles modal while VPN is connected
+            if (isVpnRunning) {
+                showToast('warning', 'Отключите VPN для смены профиля');
+                return;
+            }
+            loadProfiles().then(() => {
+                renderProfilesList();
+                openModal('profilesModal');
+            });
+        }
+        
+        function renderProfilesList() {
+            const container = document.getElementById('profilesList');
+            if (!container) return;
+            
+            if (currentProfiles.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет профилей</div>';
+                return;
+            }
+            
+            container.innerHTML = currentProfiles.map(profile => `
+                <div class="profile-item ${profile.id === activeProfileId ? 'active' : ''}" 
+                     onclick="selectProfile(${profile.id})">
+                    ${profile.id === activeProfileId ? '<div class="active-indicator"></div>' : ''}
+                    <div class="profile-info">
+                        <div class="profile-name">
+                            ${escapeHtml(profile.name)}
+                            ${profile.id === 1 ? '<span class="default-badge">По умолчанию</span>' : ''}
+                        </div>
+                        <div class="profile-meta">
+                            ${profile.subscription ? `<span>⚡ ${profile.proxyCount || 0} прокси</span>` : '<span>⚡ Нет подписки</span>'}
+                            ${profile.wireguards && profile.wireguards.length ? `<span>🏢 ${profile.wireguards.length} WG</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="profile-actions" onclick="event.stopPropagation()">
+                        <button class="edit-btn" onclick="openEditProfileModal(${profile.id})" title="Редактировать">✏️</button>
+                        <button class="delete-btn" onclick="deleteProfile(${profile.id})" 
+                                ${profile.id === 1 ? 'disabled title="Нельзя удалить профиль по умолчанию"' : 'title="Удалить"'}>🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function selectProfile(id) {
+            if (id === activeProfileId) return;
+            
+            // Don't allow switching while connected
+            if (isVpnRunning) {
+                showToast('warning', 'Отключите VPN перед сменой профиля');
+                return;
+            }
+            
+            try {
+                const result = await go.main.App.SetActiveProfile(id);
+                if (result.success) {
+                    activeProfileId = id;
+                    renderProfilesList();
+                    updateActiveProfileDisplay();
+                    showToast('success', 'Профиль активирован');
+                    // Reload subscriptions and WireGuard for new profile
+                    updateSubscriptionBadge();
+                    updateWireGuardBadge();
+                } else {
+                    showToast('error', result.error || 'Ошибка');
+                }
+            } catch (e) {
+                showToast('error', 'Ошибка смены профиля');
+            }
+        }
+        
+        function openCreateProfileModal() {
+            editingProfileId = null;
+            document.getElementById('profileEditTitle').textContent = '➕ Новый профиль';
+            document.getElementById('profileNameInput').value = '';
+            document.getElementById('saveProfileBtn').textContent = 'Создать';
+            document.getElementById('profileModalStatus').className = 'modal-status';
+            document.getElementById('profileModalStatus').textContent = '';
+            closeModal('profilesModal');
+            openModal('profileEditModal');
+            document.getElementById('profileNameInput').focus();
+        }
+        
+        function openEditProfileModal(id) {
+            const profile = currentProfiles.find(p => p.id === id);
+            if (!profile) return;
+            
+            editingProfileId = id;
+            document.getElementById('profileEditTitle').textContent = '✏️ Редактировать профиль';
+            document.getElementById('profileNameInput').value = profile.name;
+            document.getElementById('saveProfileBtn').textContent = 'Сохранить';
+            document.getElementById('profileModalStatus').className = 'modal-status';
+            document.getElementById('profileModalStatus').textContent = '';
+            closeModal('profilesModal');
+            openModal('profileEditModal');
+            document.getElementById('profileNameInput').focus();
+        }
+        
+        async function saveProfile() {
+            const name = document.getElementById('profileNameInput').value.trim();
+            const status = document.getElementById('profileModalStatus');
+            
+            if (!name) {
+                status.className = 'modal-status error';
+                status.textContent = 'Введите название профиля';
+                return;
+            }
+            
+            try {
+                let result;
+                if (editingProfileId === null) {
+                    result = await go.main.App.CreateProfile(name);
+                } else {
+                    result = await go.main.App.UpdateProfile(editingProfileId, name);
+                }
+                
+                if (result.success) {
+                    closeModal('profileEditModal');
+                    await loadProfiles();
+                    showToast('success', editingProfileId ? 'Профиль обновлён' : 'Профиль создан');
+                    openModal('profilesModal');
+                    renderProfilesList();
+                } else {
+                    status.className = 'modal-status error';
+                    status.textContent = result.error || 'Ошибка';
+                }
+            } catch (e) {
+                status.className = 'modal-status error';
+                status.textContent = 'Ошибка сохранения';
+            }
+        }
+        
+        async function deleteProfile(id) {
+            if (id === 1) {
+                showToast('warning', 'Нельзя удалить профиль по умолчанию');
+                return;
+            }
+            
+            const profile = currentProfiles.find(p => p.id === id);
+            if (!profile) return;
+            
+            const confirmed = await showConfirm(
+                `Удалить профиль "${profile.name}"? Все настройки профиля будут потеряны.`,
+                'Удаление профиля'
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                const result = await go.main.App.DeleteProfile(id);
+                if (result.success) {
+                    await loadProfiles();
+                    renderProfilesList();
+                    showToast('success', 'Профиль удалён');
+                } else {
+                    showToast('error', result.error || 'Ошибка удаления');
+                }
+            } catch (e) {
+                showToast('error', 'Ошибка удаления профиля');
+            }
+        }
+        
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus();
+            updateSubscriptionBadge();
+            updateWireGuardBadge();
+            loadAppConfig();
+            loadProfiles();
+            setInterval(updateStatus, 3000);
+        });
+
+        if (document.readyState !== 'loading') {
+            updateStatus();
+            updateSubscriptionBadge();
+            updateWireGuardBadge();
+            loadAppConfig();
+            loadProfiles();
+        }
+    </script>
+</body>
+</html>
