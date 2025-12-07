@@ -12,22 +12,26 @@ import (
 
 // HasTemplate проверяет наличие template.json
 func (a *App) HasTemplate() bool {
-	return a.templatePath != "" && fileExists(a.templatePath)
+	if a.storage == nil {
+		return false
+	}
+	return fileExists(a.storage.GetTemplatePath())
 }
 
 // GetTemplateContent возвращает содержимое template.json
 func (a *App) GetTemplateContent() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.templatePath == "" {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Путь к template.json не установлен",
+			"error":   "Storage не инициализирован",
 			"content": "",
 		}
 	}
 	
-	content, err := os.ReadFile(a.templatePath)
+	templatePath := a.storage.GetTemplatePath()
+	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -46,12 +50,14 @@ func (a *App) GetTemplateContent() map[string]interface{} {
 func (a *App) SaveTemplateContent(content string) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.templatePath == "" {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Путь к template.json не установлен",
+			"error":   "Storage не инициализирован",
 		}
 	}
+	
+	templatePath := a.storage.GetTemplatePath()
 	
 	// Валидируем JSON перед сохранением
 	var jsonTest interface{}
@@ -71,7 +77,7 @@ func (a *App) SaveTemplateContent(content string) map[string]interface{} {
 		}
 	}
 	
-	if err := os.WriteFile(a.templatePath, prettyJSON.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(templatePath, prettyJSON.Bytes(), 0644); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Не удалось сохранить template.json: %v", err),
@@ -89,15 +95,17 @@ func (a *App) SaveTemplateContent(content string) map[string]interface{} {
 func (a *App) ResetTemplate() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.templatePath == "" {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Путь к template.json не установлен",
+			"error":   "Storage не инициализирован",
 		}
 	}
 	
+	templatePath := a.storage.GetTemplatePath()
+	
 	// Используем функцию из main.go для копирования embedded template
-	if err := copyEmbeddedTemplate(a.templatePath); err != nil {
+	if err := copyEmbeddedTemplate(templatePath); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Не удалось сбросить template.json: %v", err),

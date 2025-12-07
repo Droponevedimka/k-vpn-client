@@ -11,15 +11,15 @@ import (
 func (a *App) GetWireGuardList() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.configBuilder == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "ConfigBuilder не инициализирован",
+			"error":   "Storage не инициализирован",
 			"configs": []WireGuardInfo{},
 		}
 	}
 
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -116,7 +116,7 @@ func (a *App) AddWireGuard(tag string, name string, configText string) map[strin
 	}
 
 	// Загружаем текущие настройки
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -146,7 +146,7 @@ func (a *App) AddWireGuard(tag string, name string, configText string) map[strin
 	settings.WireGuardConfigs = append(settings.WireGuardConfigs, *wg)
 
 	// Перегенерируем конфиг
-	if err := a.configBuilder.BuildConfigFull(settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
+	if err := a.configBuilder.BuildConfigForProfile(a.storage.GetActiveProfileID(), settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
@@ -205,7 +205,7 @@ func (a *App) UpdateWireGuard(oldTag string, tag string, name string, configText
 	}
 
 	// Загружаем текущие настройки
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -242,7 +242,7 @@ func (a *App) UpdateWireGuard(oldTag string, tag string, name string, configText
 	}
 
 	// Перегенерируем конфиг
-	if err := a.configBuilder.BuildConfigFull(settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
+	if err := a.configBuilder.BuildConfigForProfile(a.storage.GetActiveProfileID(), settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
@@ -269,15 +269,15 @@ func (a *App) DeleteWireGuard(tag string) map[string]interface{} {
 	}
 	a.mu.Unlock()
 
-	if a.configBuilder == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "ConfigBuilder не инициализирован",
+			"error":   "Storage не инициализирован",
 		}
 	}
 
 	// Загружаем текущие настройки
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -306,7 +306,7 @@ func (a *App) DeleteWireGuard(tag string) map[string]interface{} {
 	settings.WireGuardConfigs = newConfigs
 
 	// Перегенерируем конфиг
-	if err := a.configBuilder.BuildConfigFull(settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
+	if err := a.configBuilder.BuildConfigForProfile(a.storage.GetActiveProfileID(), settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
@@ -323,14 +323,14 @@ func (a *App) DeleteWireGuard(tag string) map[string]interface{} {
 func (a *App) GetWireGuardConfig(tag string) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.configBuilder == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "ConfigBuilder не инициализирован",
+			"error":   "Storage не инициализирован",
 		}
 	}
 
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,

@@ -194,7 +194,7 @@ func (a *App) TestAllProxiesDelay() map[string]interface{} {
 	}
 
 	// Get WireGuard configs from settings
-	settings, _ := a.configBuilder.LoadUserSettings()
+	settings, _ := a.storage.GetUserSettings()
 	wireGuardTags := []string{}
 	wireGuardNames := map[string]string{} // tag -> name
 	if settings != nil && len(settings.WireGuardConfigs) > 0 {

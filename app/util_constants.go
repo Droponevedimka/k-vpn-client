@@ -10,7 +10,7 @@ const (
 	// AppName is the display name of the application.
 	AppName = "KampusVPN"
 	// AppVersion is the current version of the application.
-	AppVersion = "1.0.0"
+	AppVersion = "1.0.1"
 	// GitHubRepo is the GitHub repository path for updates.
 	GitHubRepo = "Droponevedimka/k-vpn-client"
 	// GitHubURL is the full GitHub URL.

@@ -4,123 +4,9 @@ package main
 // This file contains subscription-related API methods
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 )
-
-// GetSettingsPath returns the path to settings file
-func (a *App) GetSettingsPath() string {
-	return a.configBuilder.GetSettingsPath()
-}
-
-// GetSettings returns current settings
-func (a *App) GetSettings() map[string]interface{} {
-	settingsPath := a.GetSettingsPath()
-	settings, err := LoadSettings(settingsPath)
-	if err != nil {
-		// Return default settings
-		settings = DefaultSettings()
-	}
-
-	// Convert to map for frontend
-	data, _ := json.Marshal(settings)
-	var result map[string]interface{}
-	json.Unmarshal(data, &result)
-
-	return result
-}
-
-// SaveSettingsFromUI saves settings from frontend
-func (a *App) SaveSettingsFromUI(settingsJSON string) map[string]interface{} {
-	var settings AppSettings
-	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Invalid settings JSON: %v", err),
-		}
-	}
-
-	settingsPath := a.GetSettingsPath()
-	if err := SaveSettings(&settings, settingsPath); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Failed to save settings: %v", err),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-	}
-}
-
-// AddSubscription adds a new subscription URL
-func (a *App) AddSubscription(url string, name string) map[string]interface{} {
-	settingsPath := a.GetSettingsPath()
-	settings, err := LoadSettings(settingsPath)
-	if err != nil {
-		settings = DefaultSettings()
-	}
-
-	// Check for duplicates
-	for _, sub := range settings.Subscriptions {
-		if sub.URL == url {
-			return map[string]interface{}{
-				"success": false,
-				"error":   "Subscription already exists",
-			}
-		}
-	}
-
-	settings.Subscriptions = append(settings.Subscriptions, SubscriptionConfig{
-		URL:            url,
-		Enabled:        true,
-		Name:           name,
-		UpdateInterval: "24h",
-	})
-
-	if err := SaveSettings(settings, settingsPath); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Failed to save settings: %v", err),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-	}
-}
-
-// RemoveSubscription removes a subscription by URL
-func (a *App) RemoveSubscription(url string) map[string]interface{} {
-	settingsPath := a.GetSettingsPath()
-	settings, err := LoadSettings(settingsPath)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   "No settings found",
-		}
-	}
-
-	newSubs := []SubscriptionConfig{}
-	for _, sub := range settings.Subscriptions {
-		if sub.URL != url {
-			newSubs = append(newSubs, sub)
-		}
-	}
-	settings.Subscriptions = newSubs
-
-	if err := SaveSettings(settings, settingsPath); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Failed to save settings: %v", err),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-	}
-}
 
 // TestSubscription tests a subscription URL and returns available proxies
 func (a *App) TestSubscription(url string) map[string]interface{} {
@@ -161,7 +47,7 @@ func (a *App) GenerateAndSaveConfig() map[string]interface{} {
 		}
 	}
 
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -169,16 +55,17 @@ func (a *App) GenerateAndSaveConfig() map[string]interface{} {
 		}
 	}
 
-	if err := a.configBuilder.BuildConfigFull(settings.SubscriptionURL, settings.WireGuardConfigs); err != nil {
+	if err := a.configBuilder.BuildConfig(settings.SubscriptionURL); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Failed to generate config: %v", err),
 		}
 	}
 
+	configPath, _ := a.storage.GetConfigPath()
 	return map[string]interface{}{
 		"success": true,
-		"path":    a.configPath,
+		"path":    configPath,
 	}
 }
 
@@ -207,54 +94,6 @@ func (a *App) UpdateSubscriptions() map[string]interface{} {
 	}
 }
 
-// AddDirectProxy adds a direct proxy link
-func (a *App) AddDirectProxy(link string) map[string]interface{} {
-	// Validate link
-	fetcher := NewSubscriptionFetcher()
-	proxy, err := fetcher.ParseSingleLink(link)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Invalid proxy link: %v", err),
-		}
-	}
-
-	settingsPath := a.GetSettingsPath()
-	settings, err := LoadSettings(settingsPath)
-	if err != nil {
-		settings = DefaultSettings()
-	}
-
-	// Check for duplicates
-	for _, p := range settings.DirectProxies {
-		if p == link {
-			return map[string]interface{}{
-				"success": false,
-				"error":   "Proxy already exists",
-			}
-		}
-	}
-
-	settings.DirectProxies = append(settings.DirectProxies, link)
-
-	if err := SaveSettings(settings, settingsPath); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Failed to save settings: %v", err),
-		}
-	}
-
-	return map[string]interface{}{
-		"success": true,
-		"proxy": map[string]interface{}{
-			"type":   proxy.Type,
-			"name":   proxy.Name,
-			"server": proxy.Server,
-			"port":   proxy.ServerPort,
-		},
-	}
-}
-
 // ==================== Subscription Management (New API) ====================
 
 // GetCurrentSubscription возвращает текущую подписку пользователя
@@ -262,14 +101,14 @@ func (a *App) GetCurrentSubscription() map[string]interface{} {
 	// Ждём инициализации
 	a.waitForInit()
 	
-	if a.configBuilder == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"hasSubscription": false,
-			"error":           "ConfigBuilder не инициализирован",
+			"error":           "Storage не инициализирован",
 		}
 	}
 
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil {
 		return map[string]interface{}{
 			"hasSubscription": false,
@@ -356,7 +195,7 @@ func (a *App) SetVPNSubscription(url string) map[string]interface{} {
 	}
 
 	// Загружаем обновлённые настройки
-	settings, _ := a.configBuilder.LoadUserSettings()
+	settings, _ := a.storage.GetUserSettings()
 
 	return map[string]interface{}{
 		"success":    true,
@@ -405,7 +244,7 @@ func (a *App) RefreshVPNSubscription() map[string]interface{} {
 		}
 	}
 
-	settings, err := a.configBuilder.LoadUserSettings()
+	settings, err := a.storage.GetUserSettings()
 	if err != nil || settings.SubscriptionURL == "" {
 		return map[string]interface{}{
 			"success": false,
