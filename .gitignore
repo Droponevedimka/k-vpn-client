@@ -17,9 +17,6 @@ app/build/bin/resources/
 release/
 
 # Go
-*.exe
-*.exe~
-*.dll
 *.so
 *.dylib
 *.test
