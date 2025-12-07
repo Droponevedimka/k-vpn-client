@@ -9,44 +9,46 @@ import (
 
 // ExportData represents all exportable application data.
 type ExportData struct {
-	Version          string              `json:"version"`           // App version that created export
-	ExportedAt       time.Time           `json:"exported_at"`       // Export timestamp
-	AppConfig        *AppConfig          `json:"app_config"`        // Application settings
-	Profiles         []ConnectionProfile `json:"profiles"`          // Connection profiles
-	WireGuardConfigs []UserWireGuardConfig `json:"wireguard_configs"` // WireGuard configurations
-	TemplateContent  string              `json:"template_content"`  // Custom template.json content
+	Version          string                `json:"version"`           // App version that created export
+	ExportedAt       time.Time             `json:"exported_at"`       // Export timestamp
+	AppSettings      GlobalAppSettings     `json:"app_settings"`      // Application settings
+	Profiles         []ProfileData         `json:"profiles"`          // Connection profiles with configs
+	WireGuardConfigs []UserWireGuardConfig `json:"wireguard_configs"` // WireGuard configurations (for active profile)
+	TemplateContent  string                `json:"template_content"`  // Custom template.json content
 }
 
 // ExportSettings exports all application settings to JSON string.
 func (a *App) ExportSettings() map[string]interface{} {
 	a.waitForInit()
 
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Storage not initialized",
+		}
+	}
+
 	export := ExportData{
 		Version:    AppVersion,
 		ExportedAt: time.Now(),
 	}
 
-	// Export app config
-	if a.appConfig != nil {
-		export.AppConfig = a.appConfig
-	}
+	// Export app settings
+	export.AppSettings = a.storage.GetAppSettings()
 
 	// Export profiles
-	if a.profileManager != nil {
-		export.Profiles = a.profileManager.GetAll()
-	}
+	export.Profiles = a.storage.GetAllProfiles()
 
-	// Export WireGuard configs
-	if a.configBuilder != nil {
-		settings, err := a.configBuilder.LoadUserSettings()
-		if err == nil && settings != nil {
-			export.WireGuardConfigs = settings.WireGuardConfigs
-		}
+	// Export WireGuard configs from active profile
+	settings, err := a.storage.GetUserSettings()
+	if err == nil && settings != nil {
+		export.WireGuardConfigs = settings.WireGuardConfigs
 	}
 
 	// Export template content
-	if a.templatePath != "" {
-		content, err := readFileContent(a.templatePath)
+	templatePath := a.storage.GetTemplatePath()
+	if templatePath != "" {
+		content, err := readFileContent(templatePath)
 		if err == nil {
 			export.TemplateContent = content
 		}
@@ -70,6 +72,13 @@ func (a *App) ExportSettings() map[string]interface{} {
 func (a *App) ImportSettings(jsonData string) map[string]interface{} {
 	a.waitForInit()
 
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Storage not initialized",
+		}
+	}
+
 	var export ExportData
 	if err := json.Unmarshal([]byte(jsonData), &export); err != nil {
 		return map[string]interface{}{
@@ -78,32 +87,31 @@ func (a *App) ImportSettings(jsonData string) map[string]interface{} {
 		}
 	}
 
-	// Import app config (except active profile ID)
-	if export.AppConfig != nil && a.appConfig != nil {
-		activeProfileID := a.appConfig.ActiveProfileID
-		*a.appConfig = *export.AppConfig
-		a.appConfig.ActiveProfileID = activeProfileID // Preserve active profile
+	// Import app settings (preserve active profile ID)
+	currentSettings := a.storage.GetAppSettings()
+	activeProfileID := currentSettings.ActiveProfileID
+	export.AppSettings.ActiveProfileID = activeProfileID
+	a.storage.UpdateAppSettings(export.AppSettings)
 
-		if a.appConfigPath != "" {
-			a.appConfig.Save(a.appConfigPath)
-		}
-	}
-
-	// Import WireGuard configs
-	if len(export.WireGuardConfigs) > 0 && a.configBuilder != nil {
-		settings, err := a.configBuilder.LoadUserSettings()
+	// Import WireGuard configs to active profile
+	if len(export.WireGuardConfigs) > 0 {
+		settings, err := a.storage.GetUserSettings()
 		if err == nil {
-			settings.WireGuardConfigs = export.WireGuardConfigs
-			a.configBuilder.SaveUserSettings(settings)
+			a.storage.UpdateProfileWireGuard(activeProfileID, export.WireGuardConfigs)
+			// Rebuild config with new WireGuard settings
+			if a.configBuilder != nil {
+				a.configBuilder.BuildConfigForProfile(activeProfileID, settings.SubscriptionURL, export.WireGuardConfigs)
+			}
 		}
 	}
 
 	// Import template (if provided)
-	if export.TemplateContent != "" && a.templatePath != "" {
+	templatePath := a.storage.GetTemplatePath()
+	if export.TemplateContent != "" && templatePath != "" {
 		// Validate JSON before saving
 		var jsonTest interface{}
 		if err := json.Unmarshal([]byte(export.TemplateContent), &jsonTest); err == nil {
-			writeFileContent(a.templatePath, export.TemplateContent)
+			writeFileContent(templatePath, export.TemplateContent)
 		}
 	}
 

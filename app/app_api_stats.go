@@ -19,7 +19,10 @@ func (a *App) initTrafficStats() {
 
 // getTrafficStatsPath возвращает путь к файлу статистики
 func (a *App) getTrafficStatsPath() string {
-	return filepath.Join(a.getConfigDir(), "traffic_stats.json")
+	if a.storage != nil {
+		return filepath.Join(a.storage.GetResourcesPath(), "traffic_stats.json")
+	}
+	return filepath.Join(a.basePath, "traffic_stats.json")
 }
 
 // GetTrafficStats возвращает статистику трафика (API для фронтенда)

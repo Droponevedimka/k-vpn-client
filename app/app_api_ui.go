@@ -61,7 +61,7 @@ func (a *App) OpenConfigFolder() {
 	var configDir string
 	switch runtime.GOOS {
 	case "windows":
-		configDir = filepath.Dir(a.configPath)
+		configDir = a.basePath
 		if configDir == "" {
 			configDir = filepath.Join(os.Getenv("LOCALAPPDATA"), "KampusVPN")
 		}

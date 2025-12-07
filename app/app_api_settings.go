@@ -5,80 +5,33 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"time"
 )
-
-// initAppConfig инициализирует настройки приложения
-func (a *App) initAppConfig() {
-	a.appConfigPath = a.getAppConfigPath()
-	a.appConfig = LoadAppConfig(a.appConfigPath)
-}
-
-// initProfileManager инициализирует менеджер профилей
-func (a *App) initProfileManager() {
-	basePath := a.getConfigDir()
-	profilesPath := filepath.Join(basePath, "profiles.json")
-	a.profileManager = NewProfileManager(profilesPath)
-}
-
-// getConfigDir возвращает директорию конфигурации приложения
-func (a *App) getConfigDir() string {
-	var configDir string
-	
-	switch runtime.GOOS {
-	case "windows":
-		configDir = filepath.Join(os.Getenv("LOCALAPPDATA"), "KampusVPN")
-	case "darwin":
-		home, _ := os.UserHomeDir()
-		configDir = filepath.Join(home, "Library", "Application Support", "KampusVPN")
-	default:
-		home, _ := os.UserHomeDir()
-		configDir = filepath.Join(home, ".config", "kampusvpn")
-	}
-	
-	os.MkdirAll(configDir, 0755)
-	return configDir
-}
-
-// getAppConfigPath возвращает путь к файлу настроек
-func (a *App) getAppConfigPath() string {
-	return filepath.Join(a.getConfigDir(), "app_config.json")
-}
-
-// saveAppConfig сохраняет настройки приложения
-func (a *App) saveAppConfig() error {
-	if a.appConfig == nil {
-		return nil
-	}
-	configPath := a.getAppConfigPath()
-	return a.appConfig.Save(configPath)
-}
 
 // GetAppConfig возвращает текущие настройки приложения (API для фронтенда)
 func (a *App) GetAppConfig() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.appConfig == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Настройки не загружены",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
+	settings := a.storage.GetAppSettings()
+	
 	return map[string]interface{}{
 		"success":           true,
-		"autoStart":         a.appConfig.AutoStart,
-		"enableLogging":     a.appConfig.EnableLogging,
-		"checkUpdates":      a.appConfig.CheckUpdates,
-		"notifications":     a.appConfig.Notifications,
-		"theme":             a.appConfig.Theme,
-		"language":          a.appConfig.Language,
-		"autoUpdateSub":     a.appConfig.AutoUpdateSub,
-		"subUpdateInterval": a.appConfig.SubUpdateInterval,
-		"lastSubUpdate":     a.appConfig.LastSubUpdate.Format(time.RFC3339),
+		"autoStart":         settings.AutoStart,
+		"enableLogging":     settings.EnableLogging,
+		"checkUpdates":      settings.CheckUpdates,
+		"notifications":     settings.Notifications,
+		"theme":             settings.Theme,
+		"language":          settings.Language,
+		"autoUpdateSub":     settings.AutoUpdateSub,
+		"subUpdateInterval": settings.SubUpdateInterval,
+		"lastSubUpdate":     settings.LastSubUpdate.Format(time.RFC3339),
 		"appVersion":        AppVersion,
 		"appName":           AppName,
 	}
@@ -88,36 +41,38 @@ func (a *App) GetAppConfig() map[string]interface{} {
 func (a *App) SaveAppConfig(autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub bool, theme, language string, subUpdateInterval int) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.appConfig == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Настройки не загружены",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
+	
+	settings := a.storage.GetAppSettings()
 	
 	// Обновляем настройки
-	a.appConfig.AutoStart = autoStart
-	a.appConfig.EnableLogging = enableLogging
-	a.appConfig.CheckUpdates = checkUpdates
-	a.appConfig.Notifications = notifications
-	a.appConfig.AutoUpdateSub = autoUpdateSub
-	a.appConfig.Theme = Theme(theme)
-	a.appConfig.Language = Language(language)
-	a.appConfig.SubUpdateInterval = subUpdateInterval
+	settings.AutoStart = autoStart
+	settings.EnableLogging = enableLogging
+	settings.CheckUpdates = checkUpdates
+	settings.Notifications = notifications
+	settings.AutoUpdateSub = autoUpdateSub
+	settings.Theme = Theme(theme)
+	settings.Language = Language(language)
+	settings.SubUpdateInterval = subUpdateInterval
 	
-	// Применяем автозапуск
-	if err := a.appConfig.SetAutoStart(autoStart); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   fmt.Sprintf("Ошибка настройки автозапуска: %v", err),
-		}
-	}
-	
-	// Сохраняем в файл
-	if err := a.saveAppConfig(); err != nil {
+	// Сохраняем в storage
+	if err := a.storage.UpdateAppSettings(settings); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Ошибка сохранения настроек: %v", err),
+		}
+	}
+	
+	// Применяем автозапуск
+	if err := SetAutoStart(autoStart); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка настройки автозапуска: %v", err),
 		}
 	}
 	

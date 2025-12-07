@@ -10,13 +10,19 @@ async function loadProfiles() {
         if (!API.GetProfiles) return;
         
         const result = await API.GetProfiles();
-        profiles = result || [];
+        if (result && result.success && result.profiles) {
+            profiles = result.profiles;
+        } else {
+            profiles = [];
+        }
         renderProfiles();
         
-        // Update active profile indicator
-        const current = profiles.find(p => p.active);
+        // Update active profile indicator from activeProfile field or isActive flag
+        const activeId = result?.activeProfile;
+        const current = profiles.find(p => p.isActive || p.id === activeId);
         if (current) {
             activeProfileId = current.id;
+            updateActiveProfileDisplay();
         }
     } catch (error) {
         console.error('Load profiles error:', error);
@@ -35,13 +41,13 @@ function renderProfiles() {
     }
     
     container.innerHTML = profiles.map(profile => `
-        <div class="profile-item ${profile.active ? 'active' : ''}" data-id="${profile.id}">
+        <div class="profile-item ${profile.isActive ? 'active' : ''}" data-id="${profile.id}">
             <div class="profile-info">
                 <div class="profile-name">${escapeHtml(profile.name)}</div>
-                <div class="profile-url">${escapeHtml(truncateUrl(profile.url))}</div>
+                <div class="profile-url">${escapeHtml(truncateUrl(profile.subscription || ''))}</div>
             </div>
             <div class="profile-actions">
-                ${profile.active ? `<span class="profile-badge">${t('active')}</span>` : ''}
+                ${profile.isActive ? `<span class="profile-badge">${t('active')}</span>` : ''}
                 <button class="btn-icon" onclick="selectProfile('${profile.id}')" title="${t('select')}">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>

@@ -1,0 +1,789 @@
+{
+  "version": 1,
+  "app": {
+    "auto_start": false,
+    "notifications": true,
+    "check_updates": true,
+    "enable_logging": true,
+    "log_level": "warn",
+    "theme": "dark",
+    "language": "ru",
+    "auto_update_sub": false,
+    "sub_update_interval": 24,
+    "last_sub_update": "0001-01-01T00:00:00Z",
+    "last_update_check": "",
+    "active_profile_id": 1
+  },
+  "profiles": [
+    {
+      "id": 1,
+      "name": "Work",
+      "created_at": "2025-12-07T08:27:52.7513894-05:00",
+      "subscription_url": "https://api.droponevedimka.in/sub/ZmVkeWEsMTc2NDcyNzczMgqC4qwRH1ag",
+      "last_updated": "2025-12-07 08:01:28",
+      "proxy_count": 3,
+      "wireguard_configs": [
+        {
+          "tag": "wg-kampus",
+          "name": "Kampus vpn",
+          "private_key": "DvH/64GEnH4QdfTZzADddlaUwnoRcHe0TKk85lJFatw=",
+          "local_address": [
+            "100.105.120.117/32",
+            "fd00::a:1173/128"
+          ],
+          "dns": "192.168.8.17",
+          "mtu": 1280,
+          "public_key": "wXm6rMCe+aW7aDpidMjGmumlN83UZzzKvzNIuooCE0c=",
+          "preshared_key": "U8uk2Qy0cdClnzUNKC/dHPcZzq6vs8axwZr0HH83OZI=",
+          "allowed_ips": [
+            "192.168.8.0/24"
+          ],
+          "endpoint": "vpn.k-ampus.dev",
+          "endpoint_port": 51820,
+          "persistent_keepalive": 25
+        }
+      ],
+      "singbox_config": {
+        "dns": {
+          "final": "dns-remote",
+          "independent_cache": true,
+          "rules": [
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".k-ampus.dev",
+                ".local",
+                ".wg-kampus.local"
+              ],
+              "server": "dns-wg-kampus"
+            },
+            {
+              "action": "route",
+              "rule_set": [
+                "geosite-category-ru",
+                "geosite-yandex",
+                "geosite-vk",
+                "geosite-mailru"
+              ],
+              "server": "dns-direct"
+            },
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".ru",
+                ".su",
+                ".рф",
+                ".yandex.com",
+                ".yandex.net",
+                ".yandex.ru",
+                ".mail.ru",
+                ".vk.com",
+                ".ok.ru",
+                ".sberbank.ru",
+                ".tinkoff.ru",
+                ".gosuslugi.ru"
+              ],
+              "server": "dns-direct"
+            }
+          ],
+          "servers": [
+            {
+              "server": "8.8.8.8",
+              "server_port": 53,
+              "tag": "dns-remote",
+              "type": "udp"
+            },
+            {
+              "server": "77.88.8.8",
+              "server_port": 53,
+              "tag": "dns-direct",
+              "type": "udp"
+            },
+            {
+              "tag": "dns-local",
+              "type": "local"
+            },
+            {
+              "detour": "wg-kampus",
+              "server": "192.168.8.17",
+              "server_port": 53,
+              "tag": "dns-wg-kampus",
+              "type": "udp"
+            }
+          ],
+          "strategy": "prefer_ipv4"
+        },
+        "endpoints": [
+          {
+            "address": [
+              "100.105.120.117/32",
+              "fd00::a:1173/128"
+            ],
+            "mtu": 1280,
+            "name": "wg-kampus",
+            "peers": [
+              {
+                "address": "84.201.162.206",
+                "allowed_ips": [
+                  "192.168.8.0/24"
+                ],
+                "persistent_keepalive_interval": 25,
+                "port": 51820,
+                "pre_shared_key": "U8uk2Qy0cdClnzUNKC/dHPcZzq6vs8axwZr0HH83OZI=",
+                "public_key": "wXm6rMCe+aW7aDpidMjGmumlN83UZzzKvzNIuooCE0c="
+              }
+            ],
+            "private_key": "DvH/64GEnH4QdfTZzADddlaUwnoRcHe0TKk85lJFatw=",
+            "system": false,
+            "tag": "wg-kampus",
+            "type": "wireguard"
+          }
+        ],
+        "experimental": {
+          "cache_file": {
+            "enabled": true,
+            "path": "cache.db"
+          },
+          "clash_api": {
+            "external_controller": "127.0.0.1:9090",
+            "secret": ""
+          }
+        },
+        "inbounds": [
+          {
+            "address": [
+              "172.19.0.1/30",
+              "fdfe:dcba:9876::1/126"
+            ],
+            "auto_route": true,
+            "interface_name": "singbox-tun",
+            "mtu": 1400,
+            "stack": "mixed",
+            "strict_route": true,
+            "tag": "tun-in",
+            "type": "tun"
+          },
+          {
+            "listen": "127.0.0.1",
+            "listen_port": 2080,
+            "tag": "mixed-in",
+            "type": "mixed"
+          }
+        ],
+        "log": {
+          "level": "info",
+          "output": "vpn.log",
+          "timestamp": true
+        },
+        "outbounds": [
+          {
+            "flow": "xtls-rprx-vision",
+            "server": "62.72.20.9",
+            "server_port": 2053,
+            "tag": "-Marz-fedya-VLESS---tcp",
+            "tls": {
+              "enabled": true,
+              "reality": {
+                "enabled": true,
+                "public_key": "BdWosTkZbY_d7WE-ZBv0w4384heMtYcfsHc5zU3bVig",
+                "short_id": ""
+              },
+              "server_name": "google.com",
+              "utls": {
+                "enabled": true,
+                "fingerprint": "chrome"
+              }
+            },
+            "type": "vless",
+            "uuid": "884fb658-4865-4437-9770-a2fa39730b58"
+          },
+          {
+            "password": "M9CXLkb49k_rt6KC05oj5A",
+            "server": "62.72.20.9",
+            "server_port": 2083,
+            "tag": "-Marz-fedya-Trojan---tcp",
+            "tls": {
+              "enabled": true,
+              "server_name": "api.droponevedimka.in"
+            },
+            "type": "trojan"
+          },
+          {
+            "password": "M9CXLkb49k_rt6KC05oj5A",
+            "server": "62.72.20.9",
+            "server_port": 2087,
+            "tag": "-Marz-fedya-Trojan---ws",
+            "tls": {
+              "enabled": true,
+              "server_name": "api.droponevedimka.in"
+            },
+            "transport": {
+              "path": "/trojan-ws",
+              "type": "ws"
+            },
+            "type": "trojan"
+          },
+          {
+            "interrupt_exist_connections": true,
+            "interval": "3m",
+            "outbounds": [
+              "-Marz-fedya-VLESS---tcp",
+              "-Marz-fedya-Trojan---tcp",
+              "-Marz-fedya-Trojan---ws"
+            ],
+            "tag": "auto-select",
+            "tolerance": 50,
+            "type": "urltest",
+            "url": "https://www.gstatic.com/generate_204"
+          },
+          {
+            "default": "auto-select",
+            "outbounds": [
+              "auto-select",
+              "-Marz-fedya-VLESS---tcp",
+              "-Marz-fedya-Trojan---tcp",
+              "-Marz-fedya-Trojan---ws",
+              "direct"
+            ],
+            "tag": "proxy",
+            "type": "selector"
+          },
+          {
+            "tag": "direct",
+            "type": "direct"
+          }
+        ],
+        "route": {
+          "auto_detect_interface": true,
+          "default_domain_resolver": "dns-direct",
+          "final": "proxy",
+          "rule_set": [
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-category-ru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ru.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-yandex",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-yandex.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-vk",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-vk.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-mailru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-mailru.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geoip-ru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs"
+            }
+          ],
+          "rules": [
+            {
+              "action": "sniff"
+            },
+            {
+              "action": "hijack-dns",
+              "protocol": "dns"
+            },
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".k-ampus.dev",
+                ".local",
+                ".wg-kampus.local"
+              ],
+              "outbound": "wg-kampus"
+            },
+            {
+              "action": "route",
+              "ip_cidr": [
+                "192.168.8.0/24"
+              ],
+              "outbound": "wg-kampus"
+            },
+            {
+              "action": "route",
+              "ip_is_private": true,
+              "outbound": "direct"
+            },
+            {
+              "action": "route",
+              "outbound": "direct",
+              "rule_set": [
+                "geosite-category-ru",
+                "geosite-yandex",
+                "geosite-vk",
+                "geosite-mailru"
+              ]
+            },
+            {
+              "action": "route",
+              "outbound": "direct",
+              "rule_set": [
+                "geoip-ru"
+              ]
+            },
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".ru",
+                ".su",
+                ".рф",
+                ".yandex.com",
+                ".yandex.net",
+                ".yandex.ru",
+                ".mail.ru",
+                ".vk.com",
+                ".vkontakte.ru",
+                ".ok.ru",
+                ".sberbank.ru",
+                ".tinkoff.ru",
+                ".vtb.ru",
+                ".gazprom.ru",
+                ".mos.ru",
+                ".gosuslugi.ru",
+                ".nalog.ru",
+                ".government.ru",
+                ".kremlin.ru",
+                ".duma.gov.ru",
+                ".cbr.ru",
+                ".ria.ru",
+                ".rbc.ru",
+                ".interfax.ru",
+                ".tass.ru",
+                ".kommersant.ru",
+                ".lenta.ru",
+                ".gazeta.ru",
+                ".kp.ru",
+                ".mk.ru",
+                ".sport-express.ru",
+                ".championat.com",
+                ".2gis.ru",
+                ".avito.ru",
+                ".ozon.ru",
+                ".wildberries.ru",
+                ".lamoda.ru",
+                ".dns-shop.ru",
+                ".mvideo.ru",
+                ".eldorado.ru",
+                ".citilink.ru",
+                ".perekrestok.ru",
+                ".lenta.com",
+                ".magnit.ru",
+                ".5ka.ru",
+                ".dixy.ru",
+                ".rzd.ru",
+                ".aeroflot.ru",
+                ".s7.ru",
+                ".utair.ru",
+                ".pochta.ru",
+                ".cdek.ru",
+                ".boxberry.ru",
+                ".mts.ru",
+                ".megafon.ru",
+                ".beeline.ru",
+                ".tele2.ru",
+                ".rostelecom.ru",
+                ".rt.ru",
+                ".vgtrk.ru",
+                ".1tv.ru",
+                ".ntv.ru",
+                ".ren.tv",
+                ".rutube.ru",
+                ".ivi.ru",
+                ".okko.tv",
+                ".more.tv",
+                ".kinopoisk.ru",
+                ".dzen.ru",
+                ".ya.ru"
+              ],
+              "outbound": "direct"
+            },
+            {
+              "action": "route",
+              "domain_keyword": [
+                "yandex",
+                "sber",
+                "tinkoff",
+                "gosuslugi",
+                "rutube",
+                "vkontakte",
+                "mailru",
+                "rambler",
+                "wildberries",
+                "ozon"
+              ],
+              "outbound": "direct"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "my_tes2",
+      "created_at": "2025-12-07T08:49:37.4895464-05:00",
+      "subscription_url": "https://api.droponevedimka.in/sub/ZmVkeWEsMTc2NDcyNzczMgqC4qwRH1ag",
+      "last_updated": "2025-12-07 08:50:07",
+      "proxy_count": 3,
+      "singbox_config": {
+        "dns": {
+          "final": "dns-remote",
+          "independent_cache": true,
+          "rules": [
+            {
+              "action": "route",
+              "rule_set": [
+                "geosite-category-ru",
+                "geosite-yandex",
+                "geosite-vk",
+                "geosite-mailru"
+              ],
+              "server": "dns-direct"
+            },
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".ru",
+                ".su",
+                ".рф",
+                ".yandex.com",
+                ".yandex.net",
+                ".yandex.ru",
+                ".mail.ru",
+                ".vk.com",
+                ".ok.ru",
+                ".sberbank.ru",
+                ".tinkoff.ru",
+                ".gosuslugi.ru"
+              ],
+              "server": "dns-direct"
+            }
+          ],
+          "servers": [
+            {
+              "server": "8.8.8.8",
+              "server_port": 53,
+              "tag": "dns-remote",
+              "type": "udp"
+            },
+            {
+              "server": "77.88.8.8",
+              "server_port": 53,
+              "tag": "dns-direct",
+              "type": "udp"
+            },
+            {
+              "tag": "dns-local",
+              "type": "local"
+            }
+          ],
+          "strategy": "prefer_ipv4"
+        },
+        "experimental": {
+          "cache_file": {
+            "enabled": true,
+            "path": "cache.db"
+          },
+          "clash_api": {
+            "external_controller": "127.0.0.1:9090"
+          }
+        },
+        "inbounds": [
+          {
+            "address": [
+              "172.19.0.1/30",
+              "fdfe:dcba:9876::1/126"
+            ],
+            "auto_route": true,
+            "interface_name": "singbox-tun",
+            "mtu": 1400,
+            "stack": "mixed",
+            "strict_route": true,
+            "tag": "tun-in",
+            "type": "tun"
+          },
+          {
+            "listen": "127.0.0.1",
+            "listen_port": 2080,
+            "tag": "mixed-in",
+            "type": "mixed"
+          }
+        ],
+        "log": {
+          "level": "info",
+          "output": "vpn.log",
+          "timestamp": true
+        },
+        "outbounds": [
+          {
+            "flow": "xtls-rprx-vision",
+            "server": "62.72.20.9",
+            "server_port": 2053,
+            "tag": "-Marz-fedya-VLESS---tcp",
+            "tls": {
+              "enabled": true,
+              "reality": {
+                "enabled": true,
+                "public_key": "BdWosTkZbY_d7WE-ZBv0w4384heMtYcfsHc5zU3bVig",
+                "short_id": ""
+              },
+              "server_name": "www.google.com",
+              "utls": {
+                "enabled": true,
+                "fingerprint": "chrome"
+              }
+            },
+            "type": "vless",
+            "uuid": "884fb658-4865-4437-9770-a2fa39730b58"
+          },
+          {
+            "password": "M9CXLkb49k_rt6KC05oj5A",
+            "server": "62.72.20.9",
+            "server_port": 2083,
+            "tag": "-Marz-fedya-Trojan---tcp",
+            "tls": {
+              "enabled": true,
+              "server_name": "api.droponevedimka.in"
+            },
+            "type": "trojan"
+          },
+          {
+            "password": "M9CXLkb49k_rt6KC05oj5A",
+            "server": "62.72.20.9",
+            "server_port": 2087,
+            "tag": "-Marz-fedya-Trojan---ws",
+            "tls": {
+              "enabled": true,
+              "server_name": "api.droponevedimka.in"
+            },
+            "transport": {
+              "path": "/trojan-ws",
+              "type": "ws"
+            },
+            "type": "trojan"
+          },
+          {
+            "interrupt_exist_connections": true,
+            "interval": "3m",
+            "outbounds": [
+              "-Marz-fedya-VLESS---tcp",
+              "-Marz-fedya-Trojan---tcp",
+              "-Marz-fedya-Trojan---ws"
+            ],
+            "tag": "auto-select",
+            "tolerance": 50,
+            "type": "urltest",
+            "url": "https://www.gstatic.com/generate_204"
+          },
+          {
+            "default": "auto-select",
+            "outbounds": [
+              "auto-select",
+              "-Marz-fedya-VLESS---tcp",
+              "-Marz-fedya-Trojan---tcp",
+              "-Marz-fedya-Trojan---ws",
+              "direct"
+            ],
+            "tag": "proxy",
+            "type": "selector"
+          },
+          {
+            "tag": "direct",
+            "type": "direct"
+          },
+          {
+            "tag": "block",
+            "type": "block"
+          },
+          {
+            "tag": "dns-out",
+            "type": "dns"
+          }
+        ],
+        "route": {
+          "auto_detect_interface": true,
+          "default_domain_resolver": "dns-direct",
+          "final": "proxy",
+          "rule_set": [
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-category-ru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ru.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-yandex",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-yandex.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-vk",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-vk.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geosite-mailru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-mailru.srs"
+            },
+            {
+              "download_detour": "direct",
+              "format": "binary",
+              "tag": "geoip-ru",
+              "type": "remote",
+              "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs"
+            }
+          ],
+          "rules": [
+            {
+              "action": "sniff"
+            },
+            {
+              "action": "hijack-dns",
+              "protocol": "dns"
+            },
+            {
+              "action": "route",
+              "ip_is_private": true,
+              "outbound": "direct"
+            },
+            {
+              "action": "route",
+              "outbound": "direct",
+              "rule_set": [
+                "geosite-category-ru",
+                "geosite-yandex",
+                "geosite-vk",
+                "geosite-mailru"
+              ]
+            },
+            {
+              "action": "route",
+              "outbound": "direct",
+              "rule_set": [
+                "geoip-ru"
+              ]
+            },
+            {
+              "action": "route",
+              "domain_suffix": [
+                ".ru",
+                ".su",
+                ".рф",
+                ".yandex.com",
+                ".yandex.net",
+                ".yandex.ru",
+                ".mail.ru",
+                ".vk.com",
+                ".vkontakte.ru",
+                ".ok.ru",
+                ".sberbank.ru",
+                ".tinkoff.ru",
+                ".vtb.ru",
+                ".gazprom.ru",
+                ".mos.ru",
+                ".gosuslugi.ru",
+                ".nalog.ru",
+                ".government.ru",
+                ".kremlin.ru",
+                ".duma.gov.ru",
+                ".cbr.ru",
+                ".ria.ru",
+                ".rbc.ru",
+                ".interfax.ru",
+                ".tass.ru",
+                ".kommersant.ru",
+                ".lenta.ru",
+                ".gazeta.ru",
+                ".kp.ru",
+                ".mk.ru",
+                ".sport-express.ru",
+                ".championat.com",
+                ".2gis.ru",
+                ".avito.ru",
+                ".ozon.ru",
+                ".wildberries.ru",
+                ".lamoda.ru",
+                ".dns-shop.ru",
+                ".mvideo.ru",
+                ".eldorado.ru",
+                ".citilink.ru",
+                ".perekrestok.ru",
+                ".lenta.com",
+                ".magnit.ru",
+                ".5ka.ru",
+                ".dixy.ru",
+                ".rzd.ru",
+                ".aeroflot.ru",
+                ".s7.ru",
+                ".utair.ru",
+                ".pochta.ru",
+                ".cdek.ru",
+                ".boxberry.ru",
+                ".mts.ru",
+                ".megafon.ru",
+                ".beeline.ru",
+                ".tele2.ru",
+                ".rostelecom.ru",
+                ".rt.ru",
+                ".vgtrk.ru",
+                ".1tv.ru",
+                ".ntv.ru",
+                ".ren.tv",
+                ".rutube.ru",
+                ".ivi.ru",
+                ".okko.tv",
+                ".more.tv",
+                ".kinopoisk.ru",
+                ".dzen.ru",
+                ".ya.ru"
+              ],
+              "outbound": "direct"
+            },
+            {
+              "action": "route",
+              "domain_keyword": [
+                "yandex",
+                "sber",
+                "tinkoff",
+                "gosuslugi",
+                "rutube",
+                "vkontakte",
+                "mailru",
+                "rambler",
+                "wildberries",
+                "ozon"
+              ],
+              "outbound": "direct"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

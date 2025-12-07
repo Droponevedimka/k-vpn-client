@@ -4,6 +4,7 @@ package main
 // This file contains profile CRUD operations
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -11,26 +12,31 @@ import (
 func (a *App) GetProfiles() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
-	profiles := a.profileManager.GetAll()
-	activeID := DefaultProfileID
-	if a.appConfig != nil {
-		activeID = a.appConfig.ActiveProfileID
-	}
+	profiles := a.storage.GetAllProfiles()
+	activeID := a.storage.GetActiveProfileID()
 	
 	var profilesData []map[string]interface{}
 	for _, p := range profiles {
+		// Count WireGuard configs
+		wgCount := len(p.WireGuardConfigs)
+		var wgTags []string
+		for _, wg := range p.WireGuardConfigs {
+			wgTags = append(wgTags, wg.Tag)
+		}
+		
 		profilesData = append(profilesData, map[string]interface{}{
 			"id":           p.ID,
 			"name":         p.Name,
 			"subscription": p.SubscriptionURL,
-			"wireguards":   p.WireGuardConfigs,
+			"wireguards":   wgTags,
+			"wireguardCount": wgCount,
 			"isActive":     p.ID == activeID,
 			"createdAt":    p.CreatedAt.Format(time.RFC3339),
 			"proxyCount":   p.ProxyCount,
@@ -48,22 +54,29 @@ func (a *App) GetProfiles() map[string]interface{} {
 func (a *App) GetActiveProfile() map[string]interface{} {
 	a.waitForInit()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
-	activeID := DefaultProfileID
-	if a.appConfig != nil {
-		activeID = a.appConfig.ActiveProfileID
-	}
-	
-	profile, err := a.profileManager.GetByID(activeID)
+	profile, err := a.storage.GetActiveProfile()
 	if err != nil {
 		// Fallback to default profile
-		profile, _ = a.profileManager.GetByID(DefaultProfileID)
+		profile, _ = a.storage.GetProfile(DefaultProfileID)
+	}
+	
+	if profile == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Профиль не найден",
+		}
+	}
+	
+	var wgTags []string
+	for _, wg := range profile.WireGuardConfigs {
+		wgTags = append(wgTags, wg.Tag)
 	}
 	
 	return map[string]interface{}{
@@ -72,7 +85,8 @@ func (a *App) GetActiveProfile() map[string]interface{} {
 			"id":           profile.ID,
 			"name":         profile.Name,
 			"subscription": profile.SubscriptionURL,
-			"wireguards":   profile.WireGuardConfigs,
+			"wireguards":   wgTags,
+			"wireguardCount": len(profile.WireGuardConfigs),
 			"isActive":     true,
 			"createdAt":    profile.CreatedAt.Format(time.RFC3339),
 			"proxyCount":   profile.ProxyCount,
@@ -95,31 +109,30 @@ func (a *App) SetActiveProfile(id int) map[string]interface{} {
 	}
 	a.mu.Unlock()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
 	// Verify profile exists
-	if _, err := a.profileManager.GetByID(id); err != nil {
+	if _, err := a.storage.GetProfile(id); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
 		}
 	}
 	
-	// Switch ConfigBuilder to new profile's settings
-	if a.configBuilder != nil {
-		a.configBuilder.SetActiveProfile(id)
+	// Set active profile in storage
+	if err := a.storage.SetActiveProfileID(id); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
 	}
 	
-	// Save active profile to config
-	if a.appConfig != nil {
-		a.appConfig.ActiveProfileID = id
-		a.saveAppConfig()
-	}
+	a.writeLog(fmt.Sprintf("Переключён на профиль %d", id))
 	
 	return map[string]interface{}{
 		"success": true,
@@ -131,14 +144,14 @@ func (a *App) SetActiveProfile(id int) map[string]interface{} {
 func (a *App) CreateProfile(name string) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
-	profile, err := a.profileManager.Create(name)
+	profile, err := a.storage.CreateProfile(name)
 	if err != nil {
 		return map[string]interface{}{
 			"success": false,
@@ -152,7 +165,7 @@ func (a *App) CreateProfile(name string) map[string]interface{} {
 			"id":           profile.ID,
 			"name":         profile.Name,
 			"subscription": profile.SubscriptionURL,
-			"wireguards":   profile.WireGuardConfigs,
+			"wireguards":   []string{},
 			"isActive":     false,
 			"createdAt":    profile.CreatedAt.Format(time.RFC3339),
 			"proxyCount":   profile.ProxyCount,
@@ -164,14 +177,14 @@ func (a *App) CreateProfile(name string) map[string]interface{} {
 func (a *App) UpdateProfile(id int, name string) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
-	if err := a.profileManager.Update(id, name); err != nil {
+	if err := a.storage.UpdateProfile(id, name); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
@@ -188,24 +201,18 @@ func (a *App) UpdateProfile(id int, name string) map[string]interface{} {
 func (a *App) DeleteProfile(id int) map[string]interface{} {
 	a.waitForInit()
 	
-	if a.profileManager == nil {
+	if a.storage == nil {
 		return map[string]interface{}{
 			"success": false,
-			"error":   "Менеджер профилей не инициализирован",
+			"error":   "Хранилище не инициализировано",
 		}
 	}
 	
-	if err := a.profileManager.Delete(id); err != nil {
+	if err := a.storage.DeleteProfile(id); err != nil {
 		return map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
 		}
-	}
-	
-	// If deleted profile was active, switch to default
-	if a.appConfig != nil && a.appConfig.ActiveProfileID == id {
-		a.appConfig.ActiveProfileID = DefaultProfileID
-		a.saveAppConfig()
 	}
 	
 	return map[string]interface{}{

@@ -21,16 +21,13 @@ type App struct {
 	initialized     bool // Initialization complete flag
 	windowVisible   bool // Window visibility flag for ping optimization
 	mu              sync.Mutex
-	configPath      string
-	templatePath    string
+	basePath        string // Base path (exe directory)
 	singboxPath     string
 	logPath         string
-	appConfigPath   string
 	logFile         *os.File
-	configBuilder   *ConfigBuilder
-	appConfig       *AppConfig
+	storage         *Storage                  // Unified storage for all settings
+	configBuilder   *ConfigBuilderForStorage  // Config builder for storage
 	trafficStats    *TrafficStats
-	profileManager  *ProfileManager
 	logBuffer       []string // Log buffer for UI
 	logBufferMu     sync.RWMutex
 }
@@ -52,14 +49,8 @@ func (a *App) startup(ctx context.Context) {
 		a.setupLogPath()
 		a.findPaths()
 		
-		// Initialize app settings FIRST (to get active profile ID)
-		a.initAppConfig()
-		
-		// Initialize profile manager
-		a.initProfileManager()
-		
-		// Initialize config builder (uses active profile from app config)
-		a.initConfigBuilder()
+		// Initialize unified storage (replaces appConfig, profileManager, configBuilder)
+		a.initStorage()
 		
 		// Initialize traffic stats
 		a.initTrafficStats()
@@ -94,51 +85,33 @@ func (a *App) shutdown(ctx context.Context) {
 		a.trafficStats.Save()
 	}
 	
-	// Save settings
-	if a.appConfig != nil {
-		a.saveAppConfig()
-	}
+	// Storage auto-saves on every change, no need to save here
 }
 
-// initConfigBuilder initializes ConfigBuilder
-func (a *App) initConfigBuilder() {
-	if a.configPath != "" {
-		basePath := filepath.Dir(a.configPath)
-		a.configBuilder = NewConfigBuilder(basePath)
-		a.templatePath = filepath.Join(basePath, "template.json")
-		
-		// Set active profile from app config (if already loaded)
-		if a.appConfig != nil && a.appConfig.ActiveProfileID != 0 {
-			a.configBuilder.SetActiveProfile(a.appConfig.ActiveProfileID)
-		}
-		
-		// Auto-regenerate config.json if there's a subscription but no config
-		a.regenerateConfigIfNeeded()
-	}
-}
-
-// regenerateConfigIfNeeded regenerates config.json if it's missing but subscription exists
-func (a *App) regenerateConfigIfNeeded() {
-	if a.configBuilder == nil {
+// initStorage initializes the unified storage
+func (a *App) initStorage() {
+	if a.basePath == "" {
 		return
 	}
 	
-	// Check if config.json exists
-	if fileExists(a.configPath) {
+	a.storage = NewStorage(a.basePath)
+	if err := a.storage.Init(); err != nil {
+		a.writeLog(fmt.Sprintf("Failed to init storage: %v", err))
 		return
 	}
 	
-	// Load settings
-	settings, err := a.configBuilder.LoadUserSettings()
-	if err != nil || settings.SubscriptionURL == "" {
-		return
+	// Create config builder for storage
+	a.configBuilder = NewConfigBuilderForStorage(a.storage)
+	
+	// Migrate from old format if needed
+	if err := a.storage.MigrateFromOldFormat(a.basePath); err != nil {
+		a.writeLog(fmt.Sprintf("Migration error: %v", err))
 	}
 	
-	// Regenerate config
-	a.configBuilder.BuildConfig(settings.SubscriptionURL)
+	a.writeLog("Storage initialized: " + a.storage.GetResourcesPath())
 }
 
-// findPaths finds paths to sing-box and config.json
+// findPaths finds paths to sing-box and base directory
 func (a *App) findPaths() {
 	// Get executable directory
 	exePath, err := os.Executable()
@@ -148,18 +121,8 @@ func (a *App) findPaths() {
 	exePath, _ = filepath.EvalSymlinks(exePath)
 	exeDir := filepath.Dir(exePath)
 
-	// Set path to config.json next to exe (even if file doesn't exist yet)
-	a.configPath = filepath.Join(exeDir, "config.json")
-	
-	// Copy template.json if it doesn't exist
-	templatePath := filepath.Join(exeDir, "template.json")
-	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		if err := copyEmbeddedTemplate(templatePath); err != nil {
-			a.writeLog(fmt.Sprintf("Failed to copy template.json: %v", err))
-		} else {
-			a.writeLog("Created template.json from embedded resource")
-		}
-	}
+	// Set base path
+	a.basePath = exeDir
 
 	// Determine sing-box binary name
 	singboxName := "sing-box"

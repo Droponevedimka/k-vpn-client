@@ -8,13 +8,21 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// getActiveConfigPath writes active config to file and returns the path.
+// This is needed because sing-box requires a file path, but we store configs in settings.json.
+func (a *App) getActiveConfigPath() (string, error) {
+	if a.storage == nil {
+		return "", fmt.Errorf("storage not initialized")
+	}
+	return a.storage.WriteActiveConfigToFile()
+}
 
 // GetStatus returns current VPN status
 func (a *App) GetStatus() map[string]interface{} {
@@ -24,12 +32,15 @@ func (a *App) GetStatus() map[string]interface{} {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	configPath, _ := a.getActiveConfigPath()
+	hasConfig := configPath != "" && fileExists(configPath)
+	
 	return map[string]interface{}{
 		"running":       a.isRunning,
 		"hasError":      a.hasError,
-		"configPath":    a.configPath,
+		"configPath":    configPath,
 		"singboxPath":   a.singboxPath,
-		"configExists":  a.configPath != "" && fileExists(a.configPath),
+		"configExists":  hasConfig,
 		"singboxExists": a.singboxPath != "" && fileExists(a.singboxPath),
 		"logPath":       a.logPath,
 	}
@@ -59,12 +70,13 @@ func (a *App) Start() map[string]interface{} {
 		}
 	}
 
-	if a.configPath == "" || !fileExists(a.configPath) {
+	configPath, err := a.getActiveConfigPath()
+	if err != nil || configPath == "" {
 		a.hasError = true
 		UpdateTrayIcon("error")
 		return map[string]interface{}{
 			"success": false,
-			"error":   "config.json не найден. Поместите его рядом с приложением.",
+			"error":   "Конфиг не найден. Добавьте подписку для текущего профиля.",
 		}
 	}
 
@@ -74,10 +86,10 @@ func (a *App) Start() map[string]interface{} {
 	}
 
 	a.writeLog(fmt.Sprintf("Starting sing-box: %s", a.singboxPath))
-	a.writeLog(fmt.Sprintf("Config: %s", a.configPath))
+	a.writeLog(fmt.Sprintf("Config: %s", configPath))
 
-	// Start sing-box
-	a.cmd = exec.Command(a.singboxPath, "run", "-c", a.configPath)
+	// Start sing-box with config for current profile
+	a.cmd = exec.Command(a.singboxPath, "run", "-c", configPath)
 
 	// Get stdout and stderr for logging
 	stdout, _ := a.cmd.StdoutPipe()
@@ -91,11 +103,14 @@ func (a *App) Start() map[string]interface{} {
 		}
 	}
 
-	// Set working directory
-	a.cmd.Dir = filepath.Dir(a.configPath)
+	// Set working directory to resources folder
+	if a.storage != nil {
+		a.cmd.Dir = a.storage.GetResourcesPath()
+	} else {
+		a.cmd.Dir = a.basePath
+	}
 
-	err := a.cmd.Start()
-	if err != nil {
+	if err := a.cmd.Start(); err != nil {
 		a.hasError = true
 		UpdateTrayIcon("error")
 		a.writeLog(fmt.Sprintf("ERROR: Failed to start: %v", err))
@@ -166,10 +181,11 @@ func (a *App) logOutput(reader io.Reader, prefix string) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Check logging setting
+		// Check logging setting from storage
 		loggingEnabled := true
-		if a.appConfig != nil {
-			loggingEnabled = a.appConfig.EnableLogging
+		if a.storage != nil {
+			settings := a.storage.GetAppSettings()
+			loggingEnabled = settings.EnableLogging
 		}
 
 		if loggingEnabled {
