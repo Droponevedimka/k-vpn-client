@@ -12,6 +12,9 @@ app/build/bin/bin/
 app/build/bin/profiles.json
 app/build/bin/app_config.json
 
+# Release builds
+release/
+
 # Go
 *.exe
 *.exe~
