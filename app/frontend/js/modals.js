@@ -107,9 +107,9 @@ function openUpdateModal(updateInfo) {
     const notesEl = document.getElementById('updateNotes');
     const downloadBtn = document.getElementById('startUpdateBtn');
     
-    if (versionEl) versionEl.textContent = updateInfo.version;
+    if (versionEl) versionEl.textContent = updateInfo.latestVersion;
     if (notesEl) notesEl.innerHTML = updateInfo.releaseNotes || t('noReleaseNotes');
-    if (downloadBtn) downloadBtn.dataset.downloadUrl = updateInfo.downloadUrl;
+    if (downloadBtn) downloadBtn.dataset.downloadUrl = updateInfo.downloadURL;
     
     // Reset progress
     const progressBar = document.getElementById('updateProgressBar');

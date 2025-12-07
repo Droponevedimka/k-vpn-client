@@ -1,20 +1,20 @@
 {
-  "name": "Kampus VPN",
-  "outputfilename": "KampusVPN",
-  "frontend:install": "npm install",
-  "frontend:build": "npm run build",
-  "frontend:dev:watcher": "npm run dev",
-  "frontend:dev:serverUrl": "auto",
-  "wailsjsdir": "./frontend/src",
-  "author": {
-    "name": "K-AMPUS",
-    "email": "support@k-ampus.dev"
-  },
-  "info": {
-    "companyName": "K-AMPUS",
-    "productName": "Kampus VPN",
-    "productVersion": "1.0.1",
-    "copyright": "Copyright 2024-2025 K-AMPUS",
-    "comments": "Secure VPN connection"
-  }
+    "name":  "Kampus VPN",
+    "outputfilename":  "KampusVPN",
+    "frontend:install":  "npm install",
+    "frontend:build":  "npm run build",
+    "frontend:dev:watcher":  "npm run dev",
+    "frontend:dev:serverUrl":  "auto",
+    "wailsjsdir":  "./frontend/src",
+    "author":  {
+                   "name":  "K-AMPUS",
+                   "email":  "support@k-ampus.dev"
+               },
+    "info":  {
+                 "companyName":  "K-AMPUS",
+                 "productName":  "Kampus VPN",
+                 "productVersion":  "1.0.2",
+                 "copyright":  "Copyright 2024-2025 K-AMPUS",
+                 "comments":  "Secure VPN connection"
+             }
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/energye/systray"
@@ -61,10 +62,11 @@ func copyEmbeddedTemplate(destPath string) error {
 
 func main() {
 	// Проверяем single instance
-	mutexName, _ := syscall.UTF16PtrFromString("KampusVPN_SingleInstance")
-	handle, _, _ := createMutex.Call(0, 0, uintptr(unsafe.Pointer(mutexName)))
-
-	if syscall.GetLastError() == syscall.ERROR_ALREADY_EXISTS {
+	mutexName, _ := syscall.UTF16PtrFromString("Global\\KampusVPN_SingleInstance")
+	handle, _, err := createMutex.Call(0, 1, uintptr(unsafe.Pointer(mutexName)))
+	
+	// ERROR_ALREADY_EXISTS = 183
+	if err == syscall.Errno(183) || (handle != 0 && err == syscall.Errno(183)) {
 		// Приложение уже запущено - показываем существующее окно
 		windowName, _ := syscall.UTF16PtrFromString("Kampus VPN")
 		hwnd, _, _ := findWindow.Call(0, uintptr(unsafe.Pointer(windowName)))
@@ -72,9 +74,13 @@ func main() {
 			showWindow.Call(hwnd, SW_RESTORE)
 			setForeground.Call(hwnd)
 		}
+		log.Println("Application already running, activating existing window")
 		os.Exit(0)
 	}
-	defer syscall.CloseHandle(syscall.Handle(handle))
+	
+	if handle != 0 {
+		defer syscall.CloseHandle(syscall.Handle(handle))
+	}
 
 	appInstance = NewApp()
 
@@ -204,12 +210,17 @@ func UpdateTrayIcon(status string) {
 		tooltip = "Kampus VPN - Отключено"
 	}
 	
+	log.Printf("UpdateTrayIcon: status=%s, iconLen=%d", status, len(iconData))
+	
 	// Обновляем иконку в трее
 	systray.SetIcon(iconData)
 	systray.SetTooltip(tooltip)
 	
-	// Обновляем иконку окна
-	go setWindowIcon(iconData)
+	// Обновляем иконку окна с небольшой задержкой
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		setWindowIcon(iconData)
+	}()
 }
 
 // setWindowIcon устанавливает иконку окна через Windows API

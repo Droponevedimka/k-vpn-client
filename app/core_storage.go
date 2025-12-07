@@ -54,6 +54,9 @@ type GlobalAppSettings struct {
 	
 	// Active profile
 	ActiveProfileID int `json:"active_profile_id"`
+	
+	// WireGuard settings
+	WireGuardVersion string `json:"wireguard_version"` // Native WireGuard version (e.g., "0.5.3")
 }
 
 // SettingsFile represents the complete settings.json structure.
@@ -138,10 +141,39 @@ func (s *Storage) Load() error {
 	// Ensure at least one profile exists
 	if len(s.data.Profiles) == 0 {
 		s.data.Profiles = []ProfileData{s.createDefaultProfile()}
-		return s.saveInternal()
 	}
 	
-	return nil
+	// Ensure default profile exists (ID=1, cannot be deleted)
+	hasDefaultProfile := false
+	for _, p := range s.data.Profiles {
+		if p.ID == DefaultProfileID {
+			hasDefaultProfile = true
+			break
+		}
+	}
+	if !hasDefaultProfile {
+		// Insert default profile at the beginning
+		s.data.Profiles = append([]ProfileData{s.createDefaultProfile()}, s.data.Profiles...)
+	}
+	
+	// Ensure active profile ID is valid
+	if s.data.App.ActiveProfileID <= 0 {
+		s.data.App.ActiveProfileID = DefaultProfileID
+	} else {
+		// Check if active profile exists
+		activeExists := false
+		for _, p := range s.data.Profiles {
+			if p.ID == s.data.App.ActiveProfileID {
+				activeExists = true
+				break
+			}
+		}
+		if !activeExists {
+			s.data.App.ActiveProfileID = DefaultProfileID
+		}
+	}
+	
+	return s.saveInternal()
 }
 
 // createDefaultSettings creates default settings structure.
@@ -153,7 +185,7 @@ func (s *Storage) createDefaultSettings() *SettingsFile {
 			Notifications:     true,
 			CheckUpdates:      true,
 			EnableLogging:     true,
-			LogLevel:          LogLevelWarn,
+			LogLevel:          LogLevelInfo, // Info by default
 			Theme:             ThemeDark,
 			Language:          LangRussian,
 			AutoUpdateSub:     false,
@@ -217,10 +249,27 @@ func (s *Storage) UpdateAppSettings(settings GlobalAppSettings) error {
 }
 
 // GetActiveProfileID returns the active profile ID.
+// Always returns a valid profile ID (at least DefaultProfileID).
 func (s *Storage) GetActiveProfileID() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.data.App.ActiveProfileID
+	
+	activeID := s.data.App.ActiveProfileID
+	
+	// If not set or invalid, return default
+	if activeID <= 0 {
+		return DefaultProfileID
+	}
+	
+	// Verify the profile exists
+	for _, p := range s.data.Profiles {
+		if p.ID == activeID {
+			return activeID
+		}
+	}
+	
+	// Profile doesn't exist, return default
+	return DefaultProfileID
 }
 
 // SetActiveProfileID sets the active profile ID.
@@ -313,7 +362,7 @@ func (s *Storage) DeleteProfile(id int) error {
 	defer s.mu.Unlock()
 	
 	if id == DefaultProfileID {
-		return fmt.Errorf("cannot delete default profile")
+		return fmt.Errorf("нельзя удалить профиль по умолчанию")
 	}
 	
 	for i := range s.data.Profiles {
@@ -408,6 +457,19 @@ func (s *Storage) WriteActiveConfigToFile() (string, error) {
 				return "", fmt.Errorf("no config for profile %d", activeID)
 			}
 			
+			// WireGuard is now managed by Native WireGuard Manager
+			// Remove old WireGuard outbounds from config if present
+			s.removeWireGuardFromConfig(config)
+			
+			// Clean up deprecated/problematic fields
+			// Remove endpoints (WireGuard is managed separately)
+			delete(config, "endpoints")
+			
+			// Remove log output to make sing-box write to stdout
+			if logSection, ok := config["log"].(map[string]interface{}); ok {
+				delete(logSection, "output")
+			}
+			
 			// Write to temp config file
 			configPath := filepath.Join(s.resourcesPath, "active_config.json")
 			data, err := json.MarshalIndent(config, "", "  ")
@@ -424,6 +486,248 @@ func (s *Storage) WriteActiveConfigToFile() (string, error) {
 	}
 	
 	return "", fmt.Errorf("active profile %d not found", activeID)
+}
+
+// removeWireGuardFromConfig removes WireGuard outbounds and related DNS/route rules
+// WireGuard is now managed by Native WireGuard Manager
+func (s *Storage) removeWireGuardFromConfig(config map[string]interface{}) {
+	// Remove WireGuard outbounds
+	if outbounds, ok := config["outbounds"].([]interface{}); ok {
+		filtered := []interface{}{}
+		for _, ob := range outbounds {
+			if obMap, ok := ob.(map[string]interface{}); ok {
+				if obType, _ := obMap["type"].(string); obType != "wireguard" {
+					filtered = append(filtered, ob)
+				}
+			}
+		}
+		config["outbounds"] = filtered
+	}
+	
+	// Remove dns-wg-* servers and rules
+	if dns, ok := config["dns"].(map[string]interface{}); ok {
+		// Remove WireGuard DNS servers
+		if servers, ok := dns["servers"].([]interface{}); ok {
+			filtered := []interface{}{}
+			for _, srv := range servers {
+				if srvMap, ok := srv.(map[string]interface{}); ok {
+					if tag, _ := srvMap["tag"].(string); !strings.HasPrefix(tag, "dns-wg-") {
+						filtered = append(filtered, srv)
+					}
+				}
+			}
+			dns["servers"] = filtered
+		}
+		
+		// Remove WireGuard DNS rules (those with dns-wg-* server)
+		if rules, ok := dns["rules"].([]interface{}); ok {
+			filtered := []interface{}{}
+			for _, rule := range rules {
+				if ruleMap, ok := rule.(map[string]interface{}); ok {
+					if server, _ := ruleMap["server"].(string); !strings.HasPrefix(server, "dns-wg-") {
+						filtered = append(filtered, rule)
+					}
+				}
+			}
+			dns["rules"] = filtered
+		}
+	}
+	
+	// Remove WireGuard route rules (those routing to wg-* outbounds)
+	if route, ok := config["route"].(map[string]interface{}); ok {
+		if rules, ok := route["rules"].([]interface{}); ok {
+			filtered := []interface{}{}
+			for _, rule := range rules {
+				if ruleMap, ok := rule.(map[string]interface{}); ok {
+					if outbound, _ := ruleMap["outbound"].(string); !strings.HasPrefix(outbound, "wg-") {
+						filtered = append(filtered, rule)
+					}
+				}
+			}
+			route["rules"] = filtered
+		}
+	}
+}
+
+// migrateWireGuardToOutbounds adds WireGuard configs to outbounds if not present
+// DEPRECATED: WireGuard is now managed by Native WireGuard Manager
+func (s *Storage) migrateWireGuardToOutbounds(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	outbounds, ok := config["outbounds"].([]interface{})
+	if !ok {
+		outbounds = []interface{}{}
+	}
+	
+	// Check which WireGuard tags are already in outbounds
+	existingTags := make(map[string]bool)
+	for _, ob := range outbounds {
+		if obMap, ok := ob.(map[string]interface{}); ok {
+			if tag, ok := obMap["tag"].(string); ok {
+				existingTags[tag] = true
+			}
+		}
+	}
+	
+	// Add missing WireGuard configs at the beginning of outbounds
+	newOutbounds := []interface{}{}
+	for _, wg := range wireGuardConfigs {
+		if !existingTags[wg.Tag] {
+			newOutbounds = append(newOutbounds, wg.ToSingboxOutbound())
+		}
+	}
+	
+	// Prepend new WireGuard outbounds
+	if len(newOutbounds) > 0 {
+		config["outbounds"] = append(newOutbounds, outbounds...)
+	}
+}
+
+// migrateWireGuardDNS ensures DNS rules for .local domains exist
+func (s *Storage) migrateWireGuardDNS(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	dns, ok := config["dns"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	
+	servers, ok := dns["servers"].([]interface{})
+	if !ok {
+		servers = []interface{}{}
+	}
+	
+	rules, _ := dns["rules"].([]interface{})
+	if rules == nil {
+		rules = []interface{}{}
+	}
+	
+	for _, wg := range wireGuardConfigs {
+		if wg.DNS == "" {
+			continue
+		}
+		
+		dnsTag := wg.Tag + "-dns"
+		
+		// Check if DNS server exists
+		serverExists := false
+		for _, srv := range servers {
+			if srvMap, ok := srv.(map[string]interface{}); ok {
+				if tag, ok := srvMap["tag"].(string); ok && tag == dnsTag {
+					serverExists = true
+					break
+				}
+			}
+		}
+		
+		// Add DNS server if not exists
+		if !serverExists {
+			servers = append(servers, map[string]interface{}{
+				"type":   "udp",
+				"tag":    dnsTag,
+				"server": wg.DNS,
+				"detour": wg.Tag,
+			})
+		}
+		
+		// Check if .local DNS rule exists
+		localRuleExists := false
+		for _, rule := range rules {
+			if ruleMap, ok := rule.(map[string]interface{}); ok {
+				if server, ok := ruleMap["server"].(string); ok && server == dnsTag {
+					localRuleExists = true
+					break
+				}
+			}
+		}
+		
+		// Add .local DNS rule at the beginning if not exists
+		if !localRuleExists {
+			localRule := map[string]interface{}{
+				"domain_suffix": []string{".local", "." + wg.Tag + ".local"},
+				"action":        "route",
+				"server":        dnsTag,
+			}
+			rules = append([]interface{}{localRule}, rules...)
+		}
+	}
+	
+	dns["servers"] = servers
+	dns["rules"] = rules
+}
+
+// migrateWireGuardRouteRules ensures route rules for WireGuard AllowedIPs exist
+// Порядок: WireGuard IP rules → ip_is_private → geosite-ru → proxy
+func (s *Storage) migrateWireGuardRouteRules(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	route, ok := config["route"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	
+	rules, _ := route["rules"].([]interface{})
+	if rules == nil {
+		rules = []interface{}{}
+	}
+	
+	// Находим позицию после hijack-dns (перед ip_is_private)
+	insertIdx := 0
+	for i, rule := range rules {
+		if ruleMap, ok := rule.(map[string]interface{}); ok {
+			action, _ := ruleMap["action"].(string)
+			if action == "hijack-dns" {
+				insertIdx = i + 1
+				break
+			}
+			if action == "sniff" {
+				insertIdx = i + 1
+			}
+		}
+	}
+	
+	// Проверяем и добавляем IP rules для каждого WireGuard
+	for _, wg := range wireGuardConfigs {
+		if len(wg.AllowedIPs) == 0 {
+			continue
+		}
+		
+		// Проверяем существует ли уже правило для этого WireGuard
+		ruleExists := false
+		for _, rule := range rules {
+			if ruleMap, ok := rule.(map[string]interface{}); ok {
+				if outbound, ok := ruleMap["outbound"].(string); ok && outbound == wg.Tag {
+					if _, hasIP := ruleMap["ip_cidr"]; hasIP {
+						ruleExists = true
+						break
+					}
+				}
+			}
+		}
+		
+		// Добавляем правило если не существует
+		if !ruleExists {
+			ipRule := map[string]interface{}{
+				"ip_cidr":  wg.AllowedIPs,
+				"outbound": wg.Tag,
+			}
+			// Вставляем в позицию insertIdx
+			newRules := make([]interface{}, 0, len(rules)+1)
+			newRules = append(newRules, rules[:insertIdx]...)
+			newRules = append(newRules, ipRule)
+			newRules = append(newRules, rules[insertIdx:]...)
+			rules = newRules
+			insertIdx++ // Сдвигаем позицию для следующего WireGuard
+		}
+	}
+	
+	route["rules"] = rules
 }
 
 // --- Migration from old format ---
@@ -502,6 +806,11 @@ func (b *ConfigBuilderForStorage) BuildConfig(subscriptionURL string) error {
 
 // BuildConfigForProfile builds sing-box config for a specific profile.
 func (b *ConfigBuilderForStorage) BuildConfigForProfile(profileID int, subscriptionURL string, wireGuardConfigs []UserWireGuardConfig) error {
+	fmt.Printf("[BuildConfigForProfile] Called with profileID=%d, %d WireGuard configs\n", profileID, len(wireGuardConfigs))
+	for i, wg := range wireGuardConfigs {
+		fmt.Printf("[BuildConfigForProfile] WireGuard[%d]: tag=%s, dns=%s, allowedIPs=%v\n", i, wg.Tag, wg.DNS, wg.AllowedIPs)
+	}
+	
 	// Load template
 	templateData, err := os.ReadFile(b.storage.templatePath)
 	if err != nil {
@@ -512,6 +821,19 @@ func (b *ConfigBuilderForStorage) BuildConfigForProfile(profileID int, subscript
 	if err := json.Unmarshal(templateData, &template); err != nil {
 		return fmt.Errorf("ошибка парсинга template.json: %w", err)
 	}
+	
+	// Disable strict_route when WireGuard is used to allow system routes to work
+	fmt.Printf("[BuildConfigForProfile] Configuring TUN for WireGuard compatibility...\n")
+	b.disableStrictRouteForWireGuard(template, wireGuardConfigs)
+	
+	// Add DNS servers and rules for WireGuard networks
+	// (WireGuard works natively, DNS queries go through direct and WireGuard interface handles routing)
+	fmt.Printf("[BuildConfigForProfile] Adding WireGuard DNS rules for %d configs...\n", len(wireGuardConfigs))
+	b.addWireGuardDNSNew(template, wireGuardConfigs)
+	
+	// Update route rules for WireGuard AllowedIPs
+	fmt.Printf("[BuildConfigForProfile] Adding WireGuard route rules...\n")
+	b.updateRouteRulesForWireGuardNew(template, wireGuardConfigs)
 	
 	// Get proxies from subscription
 	var proxies []ProxyConfig
@@ -541,14 +863,9 @@ func (b *ConfigBuilderForStorage) BuildConfigForProfile(profileID int, subscript
 	outbounds := b.generateOutbounds(template, proxies)
 	template["outbounds"] = outbounds
 	
-	// Add WireGuard endpoints
-	b.addWireGuardEndpoints(template, wireGuardConfigs)
-	
-	// Add DNS servers for WireGuard
-	b.addWireGuardDNS(template, wireGuardConfigs)
-	
-	// Update route rules for WireGuard
-	b.updateRouteRulesForWireGuard(template, wireGuardConfigs)
+	// WireGuard is now managed by Native WireGuard Manager
+	// Remove any existing WireGuard from config
+	delete(template, "endpoints")
 	
 	// Add experimental section
 	b.addExperimentalAPI(template)
@@ -633,23 +950,9 @@ func (b *ConfigBuilderForStorage) generateOutbounds(template map[string]interfac
 		})
 	}
 	
-	if block, ok := outboundsTemplate["block"].(map[string]interface{}); ok {
-		outbounds = append(outbounds, copyMap(block))
-	} else {
-		outbounds = append(outbounds, map[string]interface{}{
-			"type": "block",
-			"tag":  "block",
-		})
-	}
-	
-	if dnsOut, ok := outboundsTemplate["dns-out"].(map[string]interface{}); ok {
-		outbounds = append(outbounds, copyMap(dnsOut))
-	} else {
-		outbounds = append(outbounds, map[string]interface{}{
-			"type": "dns",
-			"tag":  "dns-out",
-		})
-	}
+	// block и dns-out удалены - в sing-box 1.11+ используются rule actions
+	// action: "reject" вместо outbound: "block"
+	// action: "hijack-dns" вместо outbound: "dns-out"
 	
 	return outbounds
 }
@@ -696,16 +999,168 @@ func (b *ConfigBuilderForStorage) addWireGuardDNS(template map[string]interface{
 		}
 		
 		serverTag := fmt.Sprintf("%s-dns", wg.Tag)
+		// New sing-box 1.12+ DNS server format
 		server := map[string]interface{}{
-			"tag":      serverTag,
-			"address":  wg.DNS,
-			"detour":   wg.Tag,
-			"strategy": "ipv4_only",
+			"type":   "udp",
+			"tag":    serverTag,
+			"server": wg.DNS,
+			"detour": wg.Tag,
 		}
 		servers = append(servers, server)
 	}
 	
 	dns["servers"] = servers
+}
+
+// disableStrictRouteForWireGuard disables strict_route in TUN when WireGuard is used.
+// This allows system routes (WireGuard interface) to work alongside sing-box TUN.
+func (b *ConfigBuilderForStorage) disableStrictRouteForWireGuard(template map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	inbounds, ok := template["inbounds"].([]interface{})
+	if !ok {
+		return
+	}
+	
+	for i, inbound := range inbounds {
+		if inboundMap, ok := inbound.(map[string]interface{}); ok {
+			if inboundMap["type"] == "tun" {
+				// Disable strict_route to allow WireGuard routes to work
+				inboundMap["strict_route"] = false
+				inbounds[i] = inboundMap
+				fmt.Printf("[disableStrictRouteForWireGuard] Disabled strict_route for TUN\n")
+				break
+			}
+		}
+	}
+	
+	template["inbounds"] = inbounds
+}
+
+// addWireGuardDNSNew adds DNS servers for WireGuard networks (native WireGuard mode).
+// DNS queries go through "direct" - the WireGuard interface handles routing.
+func (b *ConfigBuilderForStorage) addWireGuardDNSNew(template map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	dns, ok := template["dns"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	
+	servers, _ := dns["servers"].([]interface{})
+	if servers == nil {
+		servers = []interface{}{}
+	}
+	
+	dnsRules, _ := dns["rules"].([]interface{})
+	if dnsRules == nil {
+		dnsRules = []interface{}{}
+	}
+	
+	for _, wg := range wireGuardConfigs {
+		if wg.DNS == "" {
+			continue
+		}
+		
+		dnsTag := fmt.Sprintf("dns-%s", wg.Tag)
+		
+		// Add DNS server - no special binding needed
+		// Traffic to DNS server IP will be excluded from TUN and go through WireGuard
+		server := map[string]interface{}{
+			"type":        "udp",
+			"tag":         dnsTag,
+			"server":      wg.DNS,
+			"server_port": 53,
+		}
+		servers = append(servers, server)
+		
+		// Build domain suffixes for DNS rule
+		domainSuffixes := []string{}
+		if wg.Endpoint != "" {
+			parts := strings.Split(wg.Endpoint, ".")
+			if len(parts) >= 2 {
+				baseDomain := "." + strings.Join(parts[len(parts)-2:], ".")
+				domainSuffixes = append(domainSuffixes, baseDomain)
+			}
+		}
+		domainSuffixes = append(domainSuffixes, ".local", fmt.Sprintf(".%s.local", wg.Tag))
+		
+		// Add DNS rule at the beginning
+		dnsRule := map[string]interface{}{
+			"domain_suffix": domainSuffixes,
+			"action":        "route",
+			"server":        dnsTag,
+		}
+		dnsRules = append([]interface{}{dnsRule}, dnsRules...)
+		
+		fmt.Printf("[addWireGuardDNSNew] Added DNS server %s (%s) for domains: %v\n", dnsTag, wg.DNS, domainSuffixes)
+	}
+	
+	dns["servers"] = servers
+	dns["rules"] = dnsRules
+}
+
+// updateRouteRulesForWireGuardNew updates route rules for WireGuard (native mode).
+// Traffic goes through "direct" - the WireGuard interface handles routing based on AllowedIPs.
+func (b *ConfigBuilderForStorage) updateRouteRulesForWireGuardNew(template map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+	
+	route, ok := template["route"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	
+	rules, ok := route["rules"].([]interface{})
+	if !ok {
+		rules = []interface{}{}
+	}
+	
+	// Collect all AllowedIPs from WireGuard configs
+	allWireGuardCIDRs := []string{}
+	for _, wg := range wireGuardConfigs {
+		allWireGuardCIDRs = append(allWireGuardCIDRs, wg.AllowedIPs...)
+	}
+	
+	if len(allWireGuardCIDRs) == 0 {
+		return
+	}
+	
+	// Find position after hijack-dns
+	insertIdx := 0
+	for i, rule := range rules {
+		if ruleMap, ok := rule.(map[string]interface{}); ok {
+			action, _ := ruleMap["action"].(string)
+			if action == "hijack-dns" {
+				insertIdx = i + 1
+				break
+			}
+			if action == "sniff" {
+				insertIdx = i + 1
+			}
+		}
+	}
+	
+	// Create route rule for WireGuard networks
+	wgRule := map[string]interface{}{
+		"ip_cidr":  allWireGuardCIDRs,
+		"outbound": "direct",
+	}
+	
+	// Insert rule after hijack-dns
+	finalRules := make([]interface{}, 0, len(rules)+1)
+	finalRules = append(finalRules, rules[:insertIdx]...)
+	finalRules = append(finalRules, wgRule)
+	finalRules = append(finalRules, rules[insertIdx:]...)
+	
+	route["rules"] = finalRules
+	
+	fmt.Printf("[updateRouteRulesForWireGuardNew] Added route rule for CIDRs: %v at position %d\n", allWireGuardCIDRs, insertIdx)
 }
 
 // updateRouteRulesForWireGuard updates route rules for WireGuard.
@@ -883,7 +1338,7 @@ func (s *Storage) MigrateFromOldFormat(basePath string) error {
 	if fileExists(oldAppConfigPath) {
 		data, err := os.ReadFile(oldAppConfigPath)
 		if err == nil {
-			var oldConfig AppConfig
+			var oldConfig AppConfigLegacy
 			if json.Unmarshal(data, &oldConfig) == nil {
 				s.data.App.AutoStart = oldConfig.AutoStart
 				s.data.App.Notifications = oldConfig.Notifications

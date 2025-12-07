@@ -50,7 +50,7 @@ func CheckForUpdates() (*UpdateInfo, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", AppName+"/"+AppVersion)
+	req.Header.Set("User-Agent", AppName+"/"+Version)
 
 	resp, err := ShortHTTPClient.Do(req)
 	if err != nil {
@@ -62,7 +62,7 @@ func CheckForUpdates() (*UpdateInfo, error) {
 		// No releases
 		return &UpdateInfo{
 			Available:      false,
-			CurrentVersion: AppVersion,
+			CurrentVersion: Version,
 		}, nil
 	}
 
@@ -82,7 +82,7 @@ func CheckForUpdates() (*UpdateInfo, error) {
 
 	// Extract version from tag (remove 'v' prefix if present)
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersion := strings.TrimPrefix(AppVersion, "v")
+	currentVersion := strings.TrimPrefix(Version, "v")
 
 	// Compare versions
 	available := compareVersions(latestVersion, currentVersion) > 0
@@ -120,7 +120,7 @@ func DownloadUpdate(downloadURL string, progressCallback func(downloaded, total 
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("User-Agent", AppName+"/"+AppVersion)
+	req.Header.Set("User-Agent", AppName+"/"+Version)
 
 	resp, err := LongHTTPClient.Do(req)
 	if err != nil {

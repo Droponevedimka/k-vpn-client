@@ -29,16 +29,21 @@ func (a *App) GetAppConfig() map[string]interface{} {
 		"notifications":     settings.Notifications,
 		"theme":             settings.Theme,
 		"language":          settings.Language,
+		"logLevel":          settings.LogLevel,
 		"autoUpdateSub":     settings.AutoUpdateSub,
 		"subUpdateInterval": settings.SubUpdateInterval,
 		"lastSubUpdate":     settings.LastSubUpdate.Format(time.RFC3339),
-		"appVersion":        AppVersion,
+		"wireGuardVersion":  settings.WireGuardVersion,
+		"appVersion":        Version,
 		"appName":           AppName,
+		"singboxVersion":    SingBoxVersion,
+		"buildHash":         BuildHash,
+		"buildTime":         BuildTime,
 	}
 }
 
 // SaveAppConfig сохраняет настройки приложения (API для фронтенда)
-func (a *App) SaveAppConfig(autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub bool, theme, language string, subUpdateInterval int) map[string]interface{} {
+func (a *App) SaveAppConfig(autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub bool, theme, language, logLevel string, subUpdateInterval int) map[string]interface{} {
 	a.waitForInit()
 	
 	if a.storage == nil {
@@ -60,6 +65,11 @@ func (a *App) SaveAppConfig(autoStart, enableLogging, checkUpdates, notification
 	settings.Language = Language(language)
 	settings.SubUpdateInterval = subUpdateInterval
 	
+	// Обновляем уровень логирования
+	if logLevel != "" {
+		settings.LogLevel = LogLevel(logLevel)
+	}
+	
 	// Сохраняем в storage
 	if err := a.storage.UpdateAppSettings(settings); err != nil {
 		return map[string]interface{}{
@@ -79,6 +89,25 @@ func (a *App) SaveAppConfig(autoStart, enableLogging, checkUpdates, notification
 	return map[string]interface{}{
 		"success": true,
 		"message": "Настройки сохранены",
+	}
+}
+
+// GetWireGuardVersion returns current WireGuard version (bundled with app)
+func (a *App) GetWireGuardVersion() map[string]interface{} {
+	installed := false
+	wireguardPath := ""
+	
+	if a.nativeWG != nil {
+		installed = a.nativeWG.IsInstalled()
+		wireguardPath = a.nativeWG.wireguardPath
+	}
+	
+	return map[string]interface{}{
+		"success":       true,
+		"version":       WireGuardVersion,
+		"wintunVersion": WintunVersion,
+		"installed":     installed,
+		"wireguardPath": wireguardPath,
 	}
 }
 

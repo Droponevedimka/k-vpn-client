@@ -28,6 +28,7 @@ type App struct {
 	storage         *Storage                  // Unified storage for all settings
 	configBuilder   *ConfigBuilderForStorage  // Config builder for storage
 	trafficStats    *TrafficStats
+	nativeWG        *NativeWireGuardManager   // Native WireGuard tunnel manager
 	logBuffer       []string // Log buffer for UI
 	logBufferMu     sync.RWMutex
 }
@@ -52,12 +53,18 @@ func (a *App) startup(ctx context.Context) {
 		// Initialize unified storage (replaces appConfig, profileManager, configBuilder)
 		a.initStorage()
 		
+		// Initialize Native WireGuard Manager
+		a.initNativeWireGuard()
+		
 		// Initialize traffic stats
 		a.initTrafficStats()
 		
 		a.mu.Lock()
 		a.initialized = true
 		a.mu.Unlock()
+		
+		// Set initial tray icon to disconnected (grey)
+		UpdateTrayIcon("disconnected")
 	}()
 }
 
@@ -77,7 +84,15 @@ func (a *App) waitForInit() bool {
 
 // shutdown is called when the app is closing
 func (a *App) shutdown(ctx context.Context) {
+	// Stop sing-box
 	a.Stop()
+	
+	// Stop all Native WireGuard tunnels
+	if a.nativeWG != nil {
+		a.writeLog("Stopping all Native WireGuard tunnels...")
+		a.nativeWG.StopAllTunnels()
+	}
+	
 	a.closeLogFile()
 	
 	// Save traffic stats
@@ -111,6 +126,26 @@ func (a *App) initStorage() {
 	a.writeLog("Storage initialized: " + a.storage.GetResourcesPath())
 }
 
+// initNativeWireGuard initializes the Native WireGuard Manager
+func (a *App) initNativeWireGuard() {
+	if a.basePath == "" {
+		return
+	}
+	
+	// Create native WireGuard manager - uses bundled binaries
+	a.nativeWG = NewNativeWireGuardManager(a.basePath, a.writeLog)
+	
+	if err := a.nativeWG.Init(); err != nil {
+		a.writeLog(fmt.Sprintf("Failed to init Native WireGuard: %v", err))
+		return
+	}
+	
+	if a.nativeWG.IsInstalled() {
+		a.writeLog(fmt.Sprintf("Native WireGuard v%s available: %s", WireGuardVersion, a.nativeWG.wireguardPath))
+	} else {
+		a.writeLog(fmt.Sprintf("Native WireGuard v%s - bundled binaries not found", WireGuardVersion))
+	}
+}
 // findPaths finds paths to sing-box and base directory
 func (a *App) findPaths() {
 	// Get executable directory

@@ -218,7 +218,7 @@
 
         .footer { 
             position: fixed; bottom: 0; left: 0; right: 0;
-            display: flex; gap: 8px; justify-content: center; 
+            display: flex; gap: 8px; justify-content: center; align-items: center;
             background: rgba(15,12,41,0.95); backdrop-filter: blur(10px);
             padding: 10px 12px; 
             border-top: 1px solid rgba(255,255,255,0.05);
@@ -231,6 +231,31 @@
         .footer-btn:hover { color: #a5b4fc; background: rgba(102,126,234,0.15); }
         .footer-btn.disabled { opacity: 0.4; cursor: not-allowed; }
         .footer-btn.disabled:hover { color: #6b7280; background: none; }
+        
+        /* Version badge - oval pill above footer */
+        .version-badge {
+            position: fixed;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 27, 60, 0.85);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            color: rgba(139, 92, 246, 0.7);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            z-index: 100;
+        }
+        .version-badge:hover {
+            border-color: rgba(139, 92, 246, 0.6);
+            color: rgba(167, 139, 250, 0.9);
+            background: rgba(40, 35, 75, 0.9);
+        }
 
         /* Servers Panel - Glass morphism */
         .servers-panel {
@@ -336,6 +361,86 @@
         .modal textarea { min-height: 120px; resize: vertical; font-family: monospace; }
         .modal label { display: block; font-size: 11px; color: #8892b0; margin-bottom: 4px; margin-top: 12px; }
         .modal label:first-of-type { margin-top: 0; }
+        
+        /* Input wrapper with paste button */
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .input-wrapper input, .input-wrapper textarea {
+            padding-right: 40px;
+        }
+        .paste-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(102, 126, 234, 0.2);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 6px;
+            padding: 6px 8px;
+            cursor: pointer;
+            color: #a5b4fc;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .paste-btn:hover {
+            background: rgba(102, 126, 234, 0.3);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        .paste-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+        .paste-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+        .input-wrapper.textarea-wrapper .paste-btn {
+            top: 12px;
+            transform: none;
+        }
+        .input-wrapper.textarea-wrapper .paste-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Context menu */
+        .context-menu {
+            position: fixed;
+            background: rgba(30, 39, 68, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            min-width: 120px;
+            display: none;
+        }
+        .context-menu.active { display: block; }
+        .context-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            color: #ccd6f6;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .context-menu-item:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+        .context-menu-item svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+            opacity: 0.7;
+        }
+        
         .modal-buttons { display: flex; gap: 10px; margin-top: 16px; }
         .modal-btn {
             flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer;
@@ -373,6 +478,9 @@
         .wg-item .actions .edit:hover { background: rgba(165,180,252,0.2); }
         .wg-item .actions .delete { color: #fca5a5; }
         .wg-item .actions .delete:hover { background: rgba(252,165,165,0.2); }
+        .wg-item-info { flex: 1; min-width: 0; }
+        .wg-item-header { display: flex; align-items: center; margin-bottom: 2px; }
+        .wg-item-networks { font-size: 9px; color: #4a5568; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .current-sub { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 11px; word-break: break-all; }
         .current-sub .label { color: #4a5568; margin-bottom: 4px; }
@@ -550,8 +658,9 @@
             background: rgba(0,0,0,0.4); border-radius: 8px; padding: 12px;
             flex: 1; overflow-y: auto; font-family: 'Consolas', monospace;
             font-size: 11px; line-height: 1.6; min-height: 0;
+            user-select: text; -webkit-user-select: text; cursor: text;
         }
-        .log-entry { color: #9ca3af; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .log-entry { color: #9ca3af; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); user-select: text; }
         .log-entry:last-child { border-bottom: none; }
         .log-entry .time { color: #6b7280; margin-right: 8px; }
         .log-entry.error { color: #f87171; }
@@ -725,6 +834,9 @@
             </button>
         </div>
         
+        <!-- Version Badge -->
+        <div class="version-badge" id="versionBadge" title="Click to copy">v...</div>
+        
         <div class="footer">
             <button class="footer-btn" id="settingsBtn" onclick="openSettings()" title="">⚙️ Настройки</button>
             <button class="footer-btn" onclick="openStats()">📊 Статистика</button>
@@ -742,7 +854,12 @@
                 <div class="label">Текущая подписка:</div>
                 <div class="url" id="currentSubUrl"></div>
             </div>
-            <input type="text" id="subscriptionInput" placeholder="https://... или vless://..." autocomplete="off">
+            <div class="input-wrapper">
+                <input type="text" id="subscriptionInput" placeholder="https://... или vless://..." autocomplete="off">
+                <button class="paste-btn" onclick="pasteToInput('subscriptionInput')" title="Вставить из буфера">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                </button>
+            </div>
             <div class="modal-status" id="vpnModalStatus"></div>
             <div class="proxy-list" id="proxyList" style="display: none;"></div>
             <div class="modal-buttons">
@@ -759,7 +876,7 @@
     <div class="modal-overlay" id="wgListModal" onclick="closeModalOnOverlay(event, 'wgListModal')">
         <div class="modal">
             <h2>🏢 Рабочие сети (WireGuard)</h2>
-            <p>VPN-туннели для доступа к корпоративным ресурсам</p>
+            <p>Все конфиги активны одновременно. Трафик направляется по AllowedIPs.</p>
             <div class="wg-list" id="wgList">
                 <div class="empty-state">Нет добавленных рабочих сетей</div>
             </div>
@@ -777,13 +894,24 @@
             <p>Вставьте стандартный WireGuard конфиг или заполните поля вручную</p>
             
             <label>Тег (латиница, без пробелов) *</label>
-            <input type="text" id="wgTag" placeholder="например: kampus-internal" pattern="[a-zA-Z][a-zA-Z0-9_-]*">
+            <div class="input-wrapper">
+                <input type="text" id="wgTag" placeholder="например: kampus-internal" pattern="[a-zA-Z][a-zA-Z0-9_-]*">
+                <button class="paste-btn" onclick="pasteToInput('wgTag')" title="Вставить из буфера">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                </button>
+            </div>
             
             <label>Название</label>
-            <input type="text" id="wgName" placeholder="например: K-AMPUS Офис">
+            <div class="input-wrapper">
+                <input type="text" id="wgName" placeholder="например: K-AMPUS Офис">
+                <button class="paste-btn" onclick="pasteToInput('wgName')" title="Вставить из буфера">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                </button>
+            </div>
             
             <label>WireGuard конфиг</label>
-            <textarea id="wgConfig" placeholder="[Interface]
+            <div class="input-wrapper textarea-wrapper">
+                <textarea id="wgConfig" placeholder="[Interface]
 PrivateKey = ...
 Address = ...
 
@@ -791,6 +919,10 @@ Address = ...
 PublicKey = ...
 AllowedIPs = ...
 Endpoint = ..."></textarea>
+                <button class="paste-btn" onclick="pasteToInput('wgConfig')" title="Вставить из буфера">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                </button>
+            </div>
             
             <div class="modal-status" id="wgModalStatus"></div>
             
@@ -828,6 +960,7 @@ Endpoint = ..."></textarea>
                 <div class="about-version" id="aboutVersion">v1.0.0</div>
                 <div class="about-info">
                     <div class="about-row"><span class="label">sing-box</span><span class="value" id="aboutSingboxVersion">загрузка...</span></div>
+                    <div class="about-row"><span class="label">Сборка</span><span class="value" id="aboutBuildInfo">-</span></div>
                     <div class="about-row"><span class="label">Разработчик</span><span class="value">Droponevedimka</span></div>
                     <div class="about-row"><span class="label">Email</span><span class="value"><a href="mailto:dr.oponevedimkga@gmail.com">dr.oponevedimkga@gmail.com</a></span></div>
                     <div class="about-row"><span class="label">GitHub</span><span class="value"><a href="https://github.com/Droponevedimka/k-vpn-client" target="_blank">Droponevedimka/k-vpn-client</a></span></div>
@@ -889,6 +1022,19 @@ Endpoint = ..."></textarea>
                         <input type="checkbox" id="settingEnableLogging">
                         <span class="slider"></span>
                     </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label" data-i18n="logLevel">Уровень логирования</div>
+                        <div class="desc" data-i18n="logLevelDesc">Детализация логов sing-box</div>
+                    </div>
+                    <select id="logLevelSelect" class="select-input">
+                        <option value="error">Error (только ошибки)</option>
+                        <option value="warn" selected>Warn (предупреждения)</option>
+                        <option value="info">Info (информация)</option>
+                        <option value="debug">Debug (отладка)</option>
+                        <option value="trace">Trace (трассировка)</option>
+                    </select>
                 </div>
             </div>
             
@@ -1103,7 +1249,12 @@ Endpoint = ..."></textarea>
             <p>Введите название профиля</p>
             
             <label>Название *</label>
-            <input type="text" id="profileNameInput" placeholder="Например: Личный VPN" autocomplete="off">
+            <div class="input-wrapper">
+                <input type="text" id="profileNameInput" placeholder="Например: Личный VPN" autocomplete="off">
+                <button class="paste-btn" onclick="pasteToInput('profileNameInput')" title="Вставить из буфера">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                </button>
+            </div>
             
             <div class="modal-status" id="profileModalStatus"></div>
             
@@ -1214,8 +1365,8 @@ Endpoint = ..."></textarea>
                     ParseWireGuardConfigAPI: (config) => window['go']['main']['App']['ParseWireGuardConfigAPI'](config),
                     // Settings
                     GetAppConfig: () => window['go']['main']['App']['GetAppConfig'](),
-                    SaveAppConfig: (autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, subUpdateInterval) => 
-                        window['go']['main']['App']['SaveAppConfig'](autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, subUpdateInterval),
+                    SaveAppConfig: (autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, logLevel, subUpdateInterval) => 
+                        window['go']['main']['App']['SaveAppConfig'](autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, logLevel, subUpdateInterval),
                     // Template
                     GetTemplateContent: () => window['go']['main']['App']['GetTemplateContent'](),
                     SaveTemplateContent: (content) => window['go']['main']['App']['SaveTemplateContent'](content),
@@ -1302,6 +1453,8 @@ Endpoint = ..."></textarea>
                 notificationsDesc: 'Показывать уведомления о подключении',
                 logging: 'Логирование sing-box',
                 loggingDesc: 'Записывать логи в файл',
+                logLevel: 'Уровень логирования',
+                logLevelDesc: 'Детализация логов sing-box',
                 subscription: 'Подписка',
                 autoUpdate: 'Авто-обновление',
                 autoUpdateDesc: 'Обновлять подписку автоматически',
@@ -1374,6 +1527,8 @@ Endpoint = ..."></textarea>
                 notificationsDesc: 'Show connection notifications',
                 logging: 'sing-box logging',
                 loggingDesc: 'Write logs to file',
+                logLevel: 'Log level',
+                logLevelDesc: 'sing-box log verbosity',
                 subscription: 'Subscription',
                 autoUpdate: 'Auto-update',
                 autoUpdateDesc: 'Update subscription automatically',
@@ -1470,6 +1625,7 @@ Endpoint = ..."></textarea>
         const faviconGray = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%234a5568'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
         const faviconGreen = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2322c55e'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
         const faviconOrange = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23f59e0b'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
+        const faviconRed = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ef4444'/%3E%3Cpath d='M16 6l-7 3v5c0 4.4 3 8.5 7 9.5 4-1 7-5.1 7-9.5V9l-7-3zm0 8h5.5c-.4 3.3-2.6 6.2-5.5 7.1V14h-5.5V9.5l5.5-2.5v7z' fill='white'/%3E%3C/svg%3E";
 
         function setFavicon(status) {
             const oldLink = document.getElementById('favicon');
@@ -1485,6 +1641,10 @@ Endpoint = ..."></textarea>
                 newLink.href = faviconOrange;
                 document.title = '🟡 Kampus VPN - Подключение...';
                 if (logo) logo.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+            } else if (status === 'error') {
+                newLink.href = faviconRed;
+                document.title = '🔴 Kampus VPN - Ошибка';
+                if (logo) logo.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
             } else {
                 newLink.href = faviconGray;
                 document.title = 'Kampus VPN';
@@ -1531,7 +1691,12 @@ Endpoint = ..."></textarea>
                     btn.classList.remove('active');
                     statusEl.textContent = 'Отключено';
                     statusEl.className = 'status disconnected';
-                    setFavicon('disconnected');
+                    // Show error icon if there was an error, otherwise disconnected
+                    if (status.hasError) {
+                        setFavicon('error');
+                    } else {
+                        setFavicon('disconnected');
+                    }
                     serversPanel.style.display = 'none';
                     stopPingUpdates();
                 }
@@ -1889,8 +2054,16 @@ Endpoint = ..."></textarea>
 
         async function saveSubscription() {
             if (!testedVpnUrl) return;
-            showVpnModalStatus('loading', 'Сохранение...');
-            document.getElementById('saveVpnBtn').disabled = true;
+            
+            // Блокируем кнопки во время сохранения
+            const saveBtn = document.getElementById('saveVpnBtn');
+            const testBtn = document.getElementById('testVpnBtn');
+            const cancelBtn = document.querySelector('#vpnModal .modal-btn:not(.primary)');
+            saveBtn.disabled = true;
+            testBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            
+            showVpnModalStatus('loading', 'Сохранение подписки...');
             
             try {
                 const result = await go.main.App.SetVPNSubscription(testedVpnUrl);
@@ -1900,11 +2073,16 @@ Endpoint = ..."></textarea>
                     setTimeout(() => closeModal('vpnModal'), 1000);
                 } else {
                     showVpnModalStatus('error', `❌ ${result.error}`);
+                    saveBtn.disabled = false;
+                    testBtn.disabled = false;
+                    if (cancelBtn) cancelBtn.disabled = false;
                 }
             } catch (e) {
                 showVpnModalStatus('error', `❌ Ошибка: ${e.message}`);
+                saveBtn.disabled = false;
+                testBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
             }
-            document.getElementById('saveVpnBtn').disabled = false;
         }
 
         async function removeSubscription() {
@@ -1950,18 +2128,27 @@ Endpoint = ..."></textarea>
                 if (wireGuardConfigs.length === 0) {
                     listEl.innerHTML = '<div class="empty-state">Нет добавленных WireGuard конфигов</div>';
                 } else {
-                    listEl.innerHTML = wireGuardConfigs.map(wg => `
+                    listEl.innerHTML = wireGuardConfigs.map(wg => {
+                        // Форматируем AllowedIPs для отображения
+                        const networks = wg.allowed_ips ? wg.allowed_ips.slice(0, 3).join(', ') : '';
+                        const moreNetworks = wg.allowed_ips && wg.allowed_ips.length > 3 ? ` +${wg.allowed_ips.length - 3}` : '';
+                        return `
                         <div class="wg-item" onclick="editWireGuard('${wg.tag}')">
-                            <div>
-                                <span class="tag">${wg.tag}</span>
-                                <span style="margin-left: 8px; color: #6b7280;">${wg.name || ''}</span>
+                            <div class="wg-item-info">
+                                <div class="wg-item-header">
+                                    <span class="tag">${wg.tag}</span>
+                                    <span style="margin-left: 8px; color: #8892b0;">${wg.name || ''}</span>
+                                </div>
+                                <div class="wg-item-networks" title="${wg.allowed_ips ? wg.allowed_ips.join(', ') : ''}">
+                                    🌐 ${networks}${moreNetworks}
+                                </div>
                             </div>
                             <div class="actions">
                                 <button class="edit" onclick="event.stopPropagation(); editWireGuard('${wg.tag}')">✏️</button>
                                 <button class="delete" onclick="event.stopPropagation(); confirmDeleteWg('${wg.tag}')">🗑️</button>
                             </div>
                         </div>
-                    `).join('');
+                    `}).join('');
                 }
             } catch (e) {
                 console.error('Error loading WireGuard list:', e);
@@ -2049,7 +2236,13 @@ Endpoint = ..."></textarea>
             const name = document.getElementById('wgName').value.trim();
             const config = document.getElementById('wgConfig').value.trim();
             
-            showWgModalStatus('loading', 'Сохранение...');
+            // Блокируем кнопки во время сохранения
+            const saveBtn = document.getElementById('saveWgBtn');
+            const cancelBtn = document.querySelector('#wgEditModal .modal-btn:not(.primary)');
+            saveBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            
+            showWgModalStatus('loading', 'Сохранение конфигурации...');
             
             try {
                 let result;
@@ -2066,9 +2259,13 @@ Endpoint = ..."></textarea>
                     setTimeout(() => closeWgEditModal(), 1000);
                 } else {
                     showWgModalStatus('error', `❌ ${result.error}`);
+                    saveBtn.disabled = false;
+                    if (cancelBtn) cancelBtn.disabled = false;
                 }
             } catch (e) {
                 showWgModalStatus('error', `❌ Ошибка: ${e.message}`);
+                saveBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         }
 
@@ -2123,11 +2320,19 @@ Endpoint = ..."></textarea>
         async function openAbout() {
             document.getElementById('aboutModal').classList.add('active');
             try {
-                const version = await go.main.App.GetVersion();
-                document.getElementById('aboutSingboxVersion').textContent = version;
-                const appVersion = await go.main.App.GetAppVersion();
-                if (appVersion.success) {
-                    document.getElementById('aboutVersion').textContent = 'v' + appVersion.version;
+                const config = await go.main.App.GetAppConfig();
+                if (config.success) {
+                    document.getElementById('aboutVersion').textContent = 'v' + config.appVersion;
+                    document.getElementById('aboutSingboxVersion').textContent = 'v' + config.singboxVersion;
+                    // Update build info if available
+                    const buildInfo = document.getElementById('aboutBuildInfo');
+                    if (buildInfo && config.buildHash) {
+                        buildInfo.textContent = `Build: ${config.buildHash} (${config.buildTime})`;
+                    }
+                } else {
+                    // Fallback to old method
+                    const version = await go.main.App.GetVersion();
+                    document.getElementById('aboutSingboxVersion').textContent = version;
                 }
             } catch (e) {
                 document.getElementById('aboutSingboxVersion').textContent = 'неизвестно';
@@ -2153,6 +2358,11 @@ Endpoint = ..."></textarea>
                     document.getElementById('settingEnableLogging').checked = config.enableLogging;
                     document.getElementById('settingTheme').value = config.theme || 'dark';
                     document.getElementById('settingLanguage').value = config.language || 'ru';
+                    // Log level
+                    const logLevelSelect = document.getElementById('logLevelSelect');
+                    if (logLevelSelect) {
+                        logLevelSelect.value = config.logLevel || 'warn';
+                    }
                 }
             } catch (e) {
                 console.error('Error loading settings:', e);
@@ -2169,9 +2379,10 @@ Endpoint = ..."></textarea>
                 const enableLogging = document.getElementById('settingEnableLogging').checked;
                 const theme = document.getElementById('settingTheme').value;
                 const language = document.getElementById('settingLanguage').value;
+                const logLevel = document.getElementById('logLevelSelect')?.value || 'warn';
                 
                 const result = await go.main.App.SaveAppConfig(
-                    autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, 24
+                    autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, logLevel, 24
                 );
                 
                 if (result.success) {
@@ -2795,6 +3006,91 @@ Endpoint = ..."></textarea>
             return null;
         }
 
+        // ==================== Paste and Context Menu ====================
+        async function pasteToInput(inputId) {
+            try {
+                const text = await navigator.clipboard.readText();
+                const input = document.getElementById(inputId);
+                if (input && text) {
+                    input.value = text;
+                    input.focus();
+                    // Trigger input event for any listeners
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    showToast('success', 'Вставлено из буфера');
+                }
+            } catch (err) {
+                console.error('Failed to paste:', err);
+                showToast('error', 'Не удалось вставить из буфера');
+            }
+        }
+        
+        // Context menu for right-click paste
+        let contextMenu = null;
+        let contextMenuTarget = null;
+        
+        function createContextMenu() {
+            if (contextMenu) return;
+            contextMenu = document.createElement('div');
+            contextMenu.className = 'context-menu';
+            contextMenu.innerHTML = `
+                <div class="context-menu-item" onclick="contextMenuPaste()">
+                    <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                    Вставить
+                </div>
+            `;
+            document.body.appendChild(contextMenu);
+        }
+        
+        function showContextMenu(e, target) {
+            createContextMenu();
+            contextMenuTarget = target;
+            contextMenu.style.left = e.clientX + 'px';
+            contextMenu.style.top = e.clientY + 'px';
+            contextMenu.classList.add('active');
+        }
+        
+        function hideContextMenu() {
+            if (contextMenu) {
+                contextMenu.classList.remove('active');
+            }
+            contextMenuTarget = null;
+        }
+        
+        async function contextMenuPaste() {
+            if (contextMenuTarget) {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text) {
+                        contextMenuTarget.value = text;
+                        contextMenuTarget.focus();
+                        contextMenuTarget.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                } catch (err) {
+                    console.error('Failed to paste:', err);
+                }
+            }
+            hideContextMenu();
+        }
+        
+        // Add right-click handlers to inputs/textareas
+        document.addEventListener('contextmenu', (e) => {
+            const target = e.target;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+                e.preventDefault();
+                showContextMenu(e, target);
+            }
+        });
+        
+        // Hide context menu on click outside
+        document.addEventListener('click', (e) => {
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                hideContextMenu();
+            }
+        });
+        
+        // Hide context menu on scroll
+        document.addEventListener('scroll', hideContextMenu, true);
+
         // ==================== Notifications / Toast ====================
         function showToast(type, message) {
             const container = document.getElementById('toastContainer');
@@ -3106,6 +3402,26 @@ Endpoint = ..."></textarea>
             return div.innerHTML;
         }
 
+        // Load and display version badge
+        async function loadFooterVersion() {
+            try {
+                const result = await go.main.App.GetAppVersion();
+                if (result.success) {
+                    const versionEl = document.getElementById('versionBadge');
+                    if (versionEl) {
+                        versionEl.textContent = 'v' + result.fullVersion;
+                        versionEl.title = `Build: ${result.buildTime}\nClick to copy`;
+                        versionEl.onclick = () => {
+                            navigator.clipboard.writeText(result.fullVersion);
+                            showToast('Скопировано', 'success');
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load version:', e);
+            }
+        }
+
         // Init
         document.addEventListener('DOMContentLoaded', () => {
             updateStatus();
@@ -3113,6 +3429,7 @@ Endpoint = ..."></textarea>
             updateWireGuardBadge();
             loadAppConfig();
             loadProfiles();
+            loadFooterVersion();
             setInterval(updateStatus, 3000);
         });
 
@@ -3122,6 +3439,7 @@ Endpoint = ..."></textarea>
             updateWireGuardBadge();
             loadAppConfig();
             loadProfiles();
+            loadFooterVersion();
         }
     </script>
 </body>

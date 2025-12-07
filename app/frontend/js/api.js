@@ -35,13 +35,25 @@ function initializeAPI() {
                 GetServerPing: go.main.App.GetServerPing,
                 RefreshAllPings: go.main.App.RefreshAllPings,
                 
-                // WireGuard
+                // WireGuard (legacy sing-box integration)
                 GetWireGuardConfigs: go.main.App.GetWireGuardConfigs,
                 ImportWireGuardConfig: go.main.App.ImportWireGuardConfig,
                 DeleteWireGuardConfig: go.main.App.DeleteWireGuardConfig,
                 SelectWireGuardConfig: go.main.App.SelectWireGuardConfig,
                 GetSelectedWireGuardConfig: go.main.App.GetSelectedWireGuardConfig,
                 OpenFileDialog: go.main.App.OpenFileDialog,
+                
+                // Native WireGuard (Windows Service based)
+                GetNativeWireGuardStatus: go.main.App.GetNativeWireGuardStatus,
+                StartNativeWireGuard: go.main.App.StartNativeWireGuard,
+                StopNativeWireGuard: go.main.App.StopNativeWireGuard,
+                StartAllNativeWireGuard: go.main.App.StartAllNativeWireGuard,
+                StopAllNativeWireGuard: go.main.App.StopAllNativeWireGuard,
+                GetNativeWireGuardTunnels: go.main.App.GetNativeWireGuardTunnels,
+                IsNativeWireGuardActive: go.main.App.IsNativeWireGuardActive,
+                DownloadWireGuard: go.main.App.DownloadWireGuard,
+                GetWireGuardVersion: go.main.App.GetWireGuardVersion,
+                SetWireGuardVersion: go.main.App.SetWireGuardVersion,
                 
                 // Logs
                 GetLogPath: go.main.App.GetLogPath,

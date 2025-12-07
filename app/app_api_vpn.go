@@ -5,8 +5,10 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -85,11 +87,29 @@ func (a *App) Start() map[string]interface{} {
 		a.writeLog(fmt.Sprintf("Warning: could not open log file: %v", err))
 	}
 
+	// Get log level from settings and update config file
+	logLevel := "info" // default - info
+	if a.storage != nil {
+		settings := a.storage.GetAppSettings()
+		if settings.LogLevel != "" {
+			logLevel = string(settings.LogLevel)
+		}
+	}
+	
+	// Update log level in config file
+	if err := a.updateConfigLogLevel(configPath, logLevel); err != nil {
+		a.writeLog(fmt.Sprintf("Warning: could not update log level in config: %v", err))
+	}
+
 	a.writeLog(fmt.Sprintf("Starting sing-box: %s", a.singboxPath))
 	a.writeLog(fmt.Sprintf("Config: %s", configPath))
+	a.writeLog(fmt.Sprintf("Log level: %s", logLevel))
 
 	// Start sing-box with config for current profile
 	a.cmd = exec.Command(a.singboxPath, "run", "-c", configPath)
+
+	// WireGuard is now handled by Native WireGuard Manager, not sing-box
+	// No need for ENABLE_DEPRECATED_WIREGUARD_OUTBOUND
 
 	// Get stdout and stderr for logging
 	stdout, _ := a.cmd.StdoutPipe()
@@ -125,6 +145,11 @@ func (a *App) Start() map[string]interface{} {
 	UpdateTrayIcon("connected")
 	a.writeLog("VPN started successfully")
 	a.AddToLogBuffer("VPN запущен")
+
+	// Start Native WireGuard tunnels (internal/corporate VPNs)
+	if a.nativeWG != nil && a.nativeWG.IsInstalled() {
+		a.startNativeWireGuardTunnels()
+	}
 
 	// Start tracking traffic statistics
 	if a.trafficStats != nil {
@@ -177,6 +202,7 @@ func (a *App) Start() map[string]interface{} {
 
 // logOutput reads and logs process output
 func (a *App) logOutput(reader io.Reader, prefix string) {
+	a.writeLog(fmt.Sprintf("[%s] Log reader started", prefix))
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -195,14 +221,28 @@ func (a *App) logOutput(reader io.Reader, prefix string) {
 		// Add to log buffer for UI (always)
 		a.AddToLogBuffer(fmt.Sprintf("[%s] %s", prefix, line))
 
-		// Check for errors
-		if strings.Contains(strings.ToLower(line), "error") ||
-			strings.Contains(strings.ToLower(line), "fatal") {
+		// Check for critical errors only (not DNS resolution failures)
+		lineLower := strings.ToLower(line)
+		isCriticalError := (strings.Contains(lineLower, "error") || strings.Contains(lineLower, "fatal")) &&
+			// Ignore DNS resolution errors for local/internal domains
+			!strings.Contains(lineLower, "dns: exchange failed") &&
+			!strings.Contains(lineLower, "context deadline exceeded") &&
+			// Ignore connection refused (normal when server is down)
+			!strings.Contains(lineLower, "connection refused") &&
+			// Ignore i/o timeout (normal network fluctuation)
+			!strings.Contains(lineLower, "i/o timeout")
+		
+		if isCriticalError {
 			a.mu.Lock()
 			a.hasError = true
 			a.mu.Unlock()
 			UpdateTrayIcon("error")
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		a.writeLog(fmt.Sprintf("[%s] Log reader error: %v", prefix, err))
+	} else {
+		a.writeLog(fmt.Sprintf("[%s] Log reader finished", prefix))
 	}
 }
 
@@ -214,6 +254,8 @@ func (a *App) Stop() map[string]interface{} {
 	if !a.isRunning || a.cmd == nil || a.cmd.Process == nil {
 		a.isRunning = false
 		a.stoppedManually = false
+		// Also stop Native WireGuard tunnels
+		a.stopNativeWireGuardTunnels()
 		UpdateTrayIcon("disconnected")
 		return map[string]interface{}{
 			"success": true,
@@ -221,6 +263,9 @@ func (a *App) Stop() map[string]interface{} {
 	}
 
 	a.writeLog("Stopping VPN...")
+
+	// Stop Native WireGuard tunnels first
+	a.stopNativeWireGuardTunnels()
 
 	// Set manual stop flag BEFORE terminating process
 	a.stoppedManually = true
@@ -263,4 +308,104 @@ func (a *App) CanModifyVPN() map[string]interface{} {
 		"canModify": !a.isRunning,
 		"message":   "Сначала отключите VPN для изменения настроек",
 	}
+}
+
+// updateConfigLogLevel updates the log level in the config file
+func (a *App) updateConfigLogLevel(configPath, logLevel string) error {
+	// Read config file
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	// Parse JSON
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	// Update log level
+	if logSection, ok := config["log"].(map[string]interface{}); ok {
+		logSection["level"] = logLevel
+	} else {
+		// Create log section if not exists
+		config["log"] = map[string]interface{}{
+			"level": logLevel,
+		}
+	}
+
+	// Write back
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// startNativeWireGuardTunnels starts all configured Native WireGuard tunnels
+func (a *App) startNativeWireGuardTunnels() {
+	a.writeLog("[WireGuard] startNativeWireGuardTunnels called")
+	
+	if a.nativeWG == nil {
+		a.writeLog("[WireGuard] nativeWG is nil, skipping")
+		return
+	}
+	
+	if a.storage == nil {
+		a.writeLog("[WireGuard] storage is nil, skipping")
+		return
+	}
+	
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		a.writeLog(fmt.Sprintf("[WireGuard] Error getting user settings: %v", err))
+		return
+	}
+	
+	a.writeLog(fmt.Sprintf("[WireGuard] Found %d WireGuard config(s)", len(settings.WireGuardConfigs)))
+	
+	if len(settings.WireGuardConfigs) == 0 {
+		a.writeLog("[WireGuard] No WireGuard configs found, skipping")
+		return
+	}
+	
+	a.writeLog(fmt.Sprintf("Starting %d Native WireGuard tunnel(s)...", len(settings.WireGuardConfigs)))
+	
+	started := 0
+	for i, wg := range settings.WireGuardConfigs {
+		a.writeLog(fmt.Sprintf("[WireGuard] Processing config %d: tag=%s, name=%s, endpoint=%s, allowedIPs=%v", 
+			i, wg.Tag, wg.Name, wg.Endpoint, wg.AllowedIPs))
+		
+		nativeConfig := wg.ToWireGuardConfig()
+		a.writeLog(fmt.Sprintf("[WireGuard] Native config: Address=%v, DNS=%s, Peers=%d", 
+			nativeConfig.Address, nativeConfig.DNS, len(nativeConfig.Peers)))
+		
+		if err := a.nativeWG.StartTunnel(i, nativeConfig); err != nil {
+			a.writeLog(fmt.Sprintf("[WireGuard] Failed to start %s: %v", wg.Tag, err))
+			a.AddToLogBuffer(fmt.Sprintf("WireGuard %s: ошибка запуска", wg.Name))
+		} else {
+			started++
+			a.AddToLogBuffer(fmt.Sprintf("WireGuard %s: подключен", wg.Name))
+		}
+	}
+	
+	if started > 0 {
+		a.writeLog(fmt.Sprintf("[WireGuard] Started %d/%d tunnels", started, len(settings.WireGuardConfigs)))
+	}
+}
+
+// stopNativeWireGuardTunnels stops all Native WireGuard tunnels
+func (a *App) stopNativeWireGuardTunnels() {
+	if a.nativeWG == nil {
+		return
+	}
+	
+	a.writeLog("Stopping Native WireGuard tunnels...")
+	a.nativeWG.StopAllTunnels()
+	a.writeLog("Native WireGuard tunnels stopped")
 }

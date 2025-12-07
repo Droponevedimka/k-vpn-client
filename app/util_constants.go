@@ -5,12 +5,30 @@ import (
 	"time"
 )
 
+// Version variables - set via ldflags during build
+var (
+	// Version is the current version of the application (set by build script).
+	Version = "dev"
+	// BuildTime is the build timestamp (set by build script).
+	BuildTime = "unknown"
+	// BuildHash is a short hash for identifying builds (set by build script).
+	BuildHash = ""
+	// SingBoxVersion is the bundled sing-box version (set by build script).
+	SingBoxVersion = "1.12.12"
+)
+
+// GetFullVersion returns version with build hash for display
+func GetFullVersion() string {
+	if BuildHash != "" {
+		return Version + "-" + BuildHash
+	}
+	return Version
+}
+
 // Application metadata
 const (
 	// AppName is the display name of the application.
 	AppName = "KampusVPN"
-	// AppVersion is the current version of the application.
-	AppVersion = "1.0.1"
 	// GitHubRepo is the GitHub repository path for updates.
 	GitHubRepo = "Droponevedimka/k-vpn-client"
 	// GitHubURL is the full GitHub URL.

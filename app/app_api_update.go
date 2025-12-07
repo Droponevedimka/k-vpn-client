@@ -118,9 +118,12 @@ del "%%~f0"
 // GetAppVersion возвращает текущую версию приложения
 func (a *App) GetAppVersion() map[string]interface{} {
 	return map[string]interface{}{
-		"success": true,
-		"version": AppVersion,
-		"name":    AppName,
-		"repo":    GitHubRepo,
+		"success":     true,
+		"version":     Version,
+		"fullVersion": GetFullVersion(),
+		"buildTime":   BuildTime,
+		"buildHash":   BuildHash,
+		"name":        AppName,
+		"repo":        GitHubRepo,
 	}
 }

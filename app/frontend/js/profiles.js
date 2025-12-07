@@ -43,7 +43,7 @@ function renderProfiles() {
     container.innerHTML = profiles.map(profile => `
         <div class="profile-item ${profile.isActive ? 'active' : ''}" data-id="${profile.id}">
             <div class="profile-info">
-                <div class="profile-name">${escapeHtml(profile.name)}</div>
+                <div class="profile-name">${escapeHtml(profile.name)}${profile.id === 1 ? ' <span class="default-badge">по умолчанию</span>' : ''}</div>
                 <div class="profile-url">${escapeHtml(truncateUrl(profile.subscription || ''))}</div>
             </div>
             <div class="profile-actions">
@@ -58,11 +58,13 @@ function renderProfiles() {
                         <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
                     </svg>
                 </button>
+                ${profile.id !== 1 ? `
                 <button class="btn-icon btn-danger" onclick="deleteProfile('${profile.id}')" title="${t('delete')}">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                     </svg>
                 </button>
+                ` : ''}
             </div>
         </div>
     `).join('');

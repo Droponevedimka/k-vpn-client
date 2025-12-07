@@ -25,13 +25,16 @@
 .toggle-switch input:checked + .slider:before { transform: translateX(20px); }
 
 /* Settings Select */
-.setting-select {
+.setting-select,
+.select-input {
     background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
     border-radius: 8px; padding: 6px 10px; color: #fff; font-size: 12px;
     cursor: pointer; outline: none; min-width: 100px;
 }
-.setting-select:focus { border-color: rgba(102,126,234,0.5); }
-.setting-select option { background: #1a1f32; color: #fff; }
+.setting-select:focus,
+.select-input:focus { border-color: rgba(102,126,234,0.5); }
+.setting-select option,
+.select-input option { background: #1a1f32; color: #fff; }
 
 /* Stats Modal - Enhanced */
 .stats-charts { margin-bottom: 16px; }

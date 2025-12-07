@@ -30,8 +30,8 @@ async function checkForUpdates(showNoUpdateToast = true) {
         
         const updateInfo = await API.CheckUpdates();
         
-        if (updateInfo && updateInfo.available) {
-            updateState.latestVersion = updateInfo.version;
+        if (updateInfo && updateInfo.success && updateInfo.hasUpdate) {
+            updateState.latestVersion = updateInfo.latestVersion;
             showUpdateAvailable(updateInfo);
         } else if (showNoUpdateToast) {
             showToast(t('noUpdatesAvailable'), 'info');
@@ -51,12 +51,12 @@ function showUpdateAvailable(updateInfo) {
     const badge = document.getElementById('updateBadge');
     if (badge) {
         badge.style.display = 'flex';
-        badge.textContent = updateInfo.version;
+        badge.textContent = updateInfo.latestVersion;
     }
     
     // Show toast with action
     showToast(
-        t('updateAvailable', { version: updateInfo.version }),
+        t('updateAvailable', { version: updateInfo.latestVersion }),
         'info',
         10000,
         [{ text: t('viewUpdate'), action: () => openUpdateModal(updateInfo) }]

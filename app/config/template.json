@@ -1,22 +1,19 @@
 {
   "log": {
     "level": "info",
-    "timestamp": true,
-    "output": "vpn.log"
+    "timestamp": true
   },
   "dns": {
     "servers": [
       {
         "type": "udp",
         "tag": "dns-remote",
-        "server": "8.8.8.8",
-        "server_port": 53
+        "server": "8.8.8.8"
       },
       {
         "type": "udp",
         "tag": "dns-direct",
-        "server": "77.88.8.8",
-        "server_port": 53
+        "server": "77.88.8.8"
       },
       {
         "type": "local",
@@ -41,7 +38,6 @@
       }
     ],
     "final": "dns-remote",
-    "strategy": "prefer_ipv4",
     "independent_cache": true
   },
   "inbounds": [
@@ -53,7 +49,7 @@
         "172.19.0.1/30",
         "fdfe:dcba:9876::1/126"
       ],
-      "mtu": 1400,
+      "mtu": 1500,
       "auto_route": true,
       "strict_route": true,
       "stack": "mixed"
@@ -82,7 +78,9 @@
     },
     "direct": {
       "type": "direct",
-      "tag": "direct"
+      "tag": "direct",
+      "tcp_fast_open": true,
+      "tcp_multi_path": true
     }
   },
   "route": {

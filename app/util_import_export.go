@@ -29,7 +29,7 @@ func (a *App) ExportSettings() map[string]interface{} {
 	}
 
 	export := ExportData{
-		Version:    AppVersion,
+		Version:    Version,
 		ExportedAt: time.Now(),
 	}
 

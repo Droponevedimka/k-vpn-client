@@ -57,3 +57,137 @@
 }
 .servers-modal-list .server-item { margin-bottom: 4px; }
 .servers-modal-list .server-item:last-child { margin-bottom: 0; }
+
+/* WireGuard Native Tunnels */
+.wireguard-install-banner {
+    background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+    border: 1px solid rgba(102,126,234,0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.wireguard-install-banner .banner-content h4 {
+    color: #ccd6f6;
+    font-size: 12px;
+    margin: 0 0 4px 0;
+}
+.wireguard-install-banner .banner-content p {
+    color: #8892b0;
+    font-size: 11px;
+    margin: 0;
+}
+.wireguard-install-banner .btn-install {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.3s;
+    align-self: flex-start;
+}
+.wireguard-install-banner .btn-install:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+}
+.wireguard-install-banner .btn-install:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.wireguard-bulk-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.wireguard-bulk-actions .btn-bulk {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid;
+}
+.wireguard-bulk-actions .btn-start-all {
+    background: rgba(100,255,218,0.1);
+    border-color: rgba(100,255,218,0.3);
+    color: #64ffda;
+}
+.wireguard-bulk-actions .btn-start-all:hover {
+    background: rgba(100,255,218,0.2);
+}
+.wireguard-bulk-actions .btn-stop-all {
+    background: rgba(255,107,107,0.1);
+    border-color: rgba(255,107,107,0.3);
+    color: #ff6b6b;
+}
+.wireguard-bulk-actions .btn-stop-all:hover {
+    background: rgba(255,107,107,0.2);
+}
+
+.tunnel-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.tunnel-badge.running {
+    background: rgba(100,255,218,0.15);
+    color: #64ffda;
+}
+.tunnel-badge.stopped {
+    background: rgba(136,146,176,0.15);
+    color: #8892b0;
+}
+
+.tunnel-actions {
+    display: flex;
+    gap: 4px;
+}
+.tunnel-actions .btn-tunnel {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+.tunnel-actions .btn-tunnel.btn-start {
+    background: rgba(100,255,218,0.2);
+    color: #64ffda;
+}
+.tunnel-actions .btn-tunnel.btn-start:hover {
+    background: rgba(100,255,218,0.3);
+}
+.tunnel-actions .btn-tunnel.btn-stop {
+    background: rgba(255,107,107,0.2);
+    color: #ff6b6b;
+}
+.tunnel-actions .btn-tunnel.btn-stop:hover {
+    background: rgba(255,107,107,0.3);
+}
+
+.wireguard-empty {
+    text-align: center;
+    padding: 20px;
+    color: #8892b0;
+}
+.wireguard-empty h4 {
+    font-size: 12px;
+    margin: 0 0 6px 0;
+    color: #ccd6f6;
+}
+.wireguard-empty p {
+    font-size: 11px;
+    margin: 0;
+}

@@ -21,9 +21,9 @@ type ConnectionProfile struct {
 	WireGuardTags   []string  `json:"wireguard_tags,omitempty"`
 }
 
-// AppConfig stores application preferences and settings (legacy format).
+// AppConfigLegacy stores application preferences and settings (legacy format).
 // Used for migration from old app_config.json format.
-type AppConfig struct {
+type AppConfigLegacy struct {
 	AutoStart         bool      `json:"auto_start"`
 	Notifications     bool      `json:"notifications"`
 	CheckUpdates      bool      `json:"check_updates"`
@@ -38,78 +38,8 @@ type AppConfig struct {
 	ActiveProfileID   int       `json:"active_profile_id"`
 }
 
-// SubscriptionTestResult результат тестирования подписки
-type SubscriptionTestResult struct {
-	Success      bool        `json:"success"`
-	Error        string      `json:"error,omitempty"`
-	Count        int         `json:"count"`
-	IsDirectLink bool        `json:"is_direct_link"`
-	Proxies      []ProxyInfo `json:"proxies"`
-}
-
-// ProxyInfo информация о прокси для UI
-type ProxyInfo struct {
-	Type   string `json:"type"`
-	Name   string `json:"name"`
-	Server string `json:"server"`
-	Port   int    `json:"port"`
-}
-
-// UserSettings хранит настройки пользователя для профиля
-type UserSettings struct {
-	SubscriptionURL  string                `json:"subscription_url"`
-	LastUpdated      string                `json:"last_updated"`
-	ProxyCount       int                   `json:"proxy_count"`
-	WireGuardConfigs []UserWireGuardConfig `json:"wireguard_configs"`
-}
-
-// generateTag generates a unique tag for a proxy
-func generateTag(p ProxyConfig, index int) string {
-	name := p.Name
-	if name == "" {
-		name = p.Type
-	}
-	// Clean up name for tag
-	tag := sanitizeTag(name)
-	if tag == "" {
-		tag = p.Type
-	}
-	return tag
-}
-
-// sanitizeTag removes invalid characters from tag
-func sanitizeTag(s string) string {
-	result := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
-			result = append(result, c)
-		} else if c == ' ' {
-			result = append(result, '-')
-		}
-	}
-	return string(result)
-}
-
-// copyMap creates a deep copy of a map
-func copyMap(m map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range m {
-		if nested, ok := v.(map[string]interface{}); ok {
-			result[k] = copyMap(nested)
-		} else if arr, ok := v.([]interface{}); ok {
-			newArr := make([]interface{}, len(arr))
-			copy(newArr, arr)
-			result[k] = newArr
-		} else {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-// SetAutoStart enables or disables system startup launch.
-func SetAutoStart(enable bool) error {
+// SetAutoStartLegacy enables or disables system startup launch.
+func SetAutoStartLegacy(enable bool) error {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
@@ -133,8 +63,8 @@ func SetAutoStart(enable bool) error {
 	}
 }
 
-// IsAutoStartEnabled checks if app is set to start with Windows.
-func IsAutoStartEnabled() bool {
+// IsAutoStartEnabledLegacy checks if app is set to start with Windows.
+func IsAutoStartEnabledLegacy() bool {
 	if runtime.GOOS != "windows" {
 		return false
 	}

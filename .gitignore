@@ -13,7 +13,11 @@ app/build/bin/profiles.json
 app/build/bin/app_config.json
 app/build/bin/resources/
 
-# Release builds
+# Dependencies - keep sing-box binaries (exclude downloaded archives)
+dependencies/**/*.zip
+dependencies/**/*.tar.gz
+
+# Release builds - keep version folders but ignore installers
 release/
 
 # Go

@@ -73,7 +73,11 @@ func ParseWireGuardConfig(config string) (*UserWireGuardConfig, error) {
 					}
 				}
 			case "dns":
-				wg.DNS = value
+				// Берём только первый DNS сервер
+				dnsServers := strings.Split(value, ",")
+				if len(dnsServers) > 0 {
+					wg.DNS = strings.TrimSpace(dnsServers[0])
+				}
 			case "mtu":
 				if mtu, err := strconv.Atoi(value); err == nil {
 					wg.MTU = mtu
@@ -150,7 +154,53 @@ func ValidateTag(tag string) error {
 	return nil
 }
 
+// ToSingboxOutbound конвертирует WireGuard конфиг в sing-box outbound (deprecated но работает до 1.13.0)
+// Используем outbound вместо endpoint чтобы работал detour в DNS серверах
+func (wg *UserWireGuardConfig) ToSingboxOutbound() map[string]interface{} {
+	// Резолвим hostname в IP если нужно
+	endpointAddr := wg.Endpoint
+	if net.ParseIP(endpointAddr) == nil {
+		// Это hostname, пробуем резолвить
+		ips, err := net.LookupIP(endpointAddr)
+		if err == nil && len(ips) > 0 {
+			// Предпочитаем IPv4
+			for _, ip := range ips {
+				if ipv4 := ip.To4(); ipv4 != nil {
+					endpointAddr = ipv4.String()
+					break
+				}
+			}
+			if net.ParseIP(endpointAddr) == nil && len(ips) > 0 {
+				endpointAddr = ips[0].String()
+			}
+		}
+	}
+
+	// Deprecated WireGuard outbound format (без вложенного peers)
+	// peer_public_key и pre_shared_key на верхнем уровне
+	outbound := map[string]interface{}{
+		"type":            "wireguard",
+		"tag":             wg.Tag,
+		"server":          endpointAddr,
+		"server_port":     wg.EndpointPort,
+		"local_address":   wg.LocalAddress,
+		"private_key":     wg.PrivateKey,
+		"peer_public_key": wg.PublicKey,
+	}
+
+	if wg.PresharedKey != "" {
+		outbound["pre_shared_key"] = wg.PresharedKey
+	}
+
+	if wg.MTU > 0 {
+		outbound["mtu"] = wg.MTU
+	}
+
+	return outbound
+}
+
 // ToSingboxEndpoint конвертирует WireGuard конфиг в sing-box endpoint (новый формат 1.12+)
+// ПРИМЕЧАНИЕ: endpoints пока не поддерживают detour в DNS, поэтому используем ToSingboxOutbound()
 func (wg *UserWireGuardConfig) ToSingboxEndpoint() map[string]interface{} {
 	// Резолвим hostname в IP если нужно
 	endpointAddr := wg.Endpoint
@@ -241,5 +291,44 @@ func (wg *UserWireGuardConfig) ToInfo() WireGuardInfo {
 		Name:       wg.Name,
 		Endpoint:   endpoint,
 		AllowedIPs: wg.AllowedIPs,
+	}
+}
+
+// WireGuardConfig is the format used by NativeWireGuardManager
+type WireGuardConfig struct {
+	PrivateKey string
+	Address    []string
+	DNS        string
+	MTU        int
+	Peers      []WireGuardPeer
+}
+
+// WireGuardPeer represents a WireGuard peer configuration
+type WireGuardPeer struct {
+	PublicKey           string
+	PresharedKey        string
+	Endpoint            string
+	Port                int
+	AllowedIPs          []string
+	PersistentKeepalive int
+}
+
+// ToWireGuardConfig converts UserWireGuardConfig to WireGuardConfig for native manager
+func (wg *UserWireGuardConfig) ToWireGuardConfig() *WireGuardConfig {
+	return &WireGuardConfig{
+		PrivateKey: wg.PrivateKey,
+		Address:    wg.LocalAddress,
+		DNS:        wg.DNS,
+		MTU:        wg.MTU,
+		Peers: []WireGuardPeer{
+			{
+				PublicKey:           wg.PublicKey,
+				PresharedKey:        wg.PresharedKey,
+				Endpoint:            wg.Endpoint,
+				Port:                wg.EndpointPort,
+				AllowedIPs:          wg.AllowedIPs,
+				PersistentKeepalive: wg.PersistentKeepalive,
+			},
+		},
 	}
 }

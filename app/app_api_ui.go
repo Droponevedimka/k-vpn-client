@@ -114,7 +114,7 @@ func openFolder(path string) {
 
 // GetVersion returns application version
 func (a *App) GetVersion() string {
-	return AppVersion
+	return Version
 }
 
 // GetSingBoxInfo returns sing-box information

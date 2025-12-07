@@ -2,6 +2,7 @@ package main
 
 // WireGuard API methods for Kampus VPN
 // This file contains WireGuard configuration management
+// Supports both sing-box integration and Native WireGuard tunnels
 
 import (
 	"fmt"
@@ -365,5 +366,321 @@ func (a *App) GetWireGuardConfig(tag string) map[string]interface{} {
 	return map[string]interface{}{
 		"success": false,
 		"error":   fmt.Sprintf("Конфиг с тегом '%s' не найден", tag),
+	}
+}
+
+// =============================================================================
+// Native WireGuard API (Windows Service based)
+// =============================================================================
+
+// GetNativeWireGuardStatus returns the status of Native WireGuard Manager
+func (a *App) GetNativeWireGuardStatus() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success":   false,
+			"installed": false,
+			"error":     "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	status := a.nativeWG.GetStatus()
+	status["success"] = true
+	return status
+}
+
+// StartNativeWireGuard starts a WireGuard tunnel using Native Windows Service
+func (a *App) StartNativeWireGuard(tag string) map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	// Check if WireGuard is installed
+	if !a.nativeWG.IsInstalled() {
+		return map[string]interface{}{
+			"success":          false,
+			"error":            "WireGuard не установлен",
+			"install_required": true,
+		}
+	}
+	
+	// Get WireGuard config from storage
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+	
+	// Find config by tag
+	var foundConfig *UserWireGuardConfig
+	var configIndex int
+	for i, wg := range settings.WireGuardConfigs {
+		if wg.Tag == tag {
+			foundConfig = &settings.WireGuardConfigs[i]
+			configIndex = i
+			break
+		}
+	}
+	
+	if foundConfig == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Конфиг '%s' не найден", tag),
+		}
+	}
+	
+	// Convert to WireGuardConfig format for native manager
+	nativeConfig := foundConfig.ToWireGuardConfig()
+	
+	// Start the tunnel
+	if err := a.nativeWG.StartTunnel(configIndex, nativeConfig); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка запуска туннеля: %v", err),
+		}
+	}
+	
+	a.writeLog(fmt.Sprintf("Native WireGuard tunnel started: %s", tag))
+	
+	return map[string]interface{}{
+		"success": true,
+		"tunnel":  fmt.Sprintf("%s%d", TunnelPrefix, configIndex),
+		"tag":     tag,
+	}
+}
+
+// StopNativeWireGuard stops a WireGuard tunnel
+func (a *App) StopNativeWireGuard(tag string) map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	// Get WireGuard config from storage to find index
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+	
+	// Find config by tag
+	configIndex := -1
+	for i, wg := range settings.WireGuardConfigs {
+		if wg.Tag == tag {
+			configIndex = i
+			break
+		}
+	}
+	
+	if configIndex < 0 {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Конфиг '%s' не найден", tag),
+		}
+	}
+	
+	// Stop the tunnel
+	if err := a.nativeWG.StopTunnel(configIndex); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка остановки туннеля: %v", err),
+		}
+	}
+	
+	a.writeLog(fmt.Sprintf("Native WireGuard tunnel stopped: %s", tag))
+	
+	return map[string]interface{}{
+		"success": true,
+		"tag":     tag,
+	}
+}
+
+// StopAllNativeWireGuard stops all active WireGuard tunnels
+func (a *App) StopAllNativeWireGuard() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	a.nativeWG.StopAllTunnels()
+	a.writeLog("All Native WireGuard tunnels stopped")
+	
+	return map[string]interface{}{
+		"success": true,
+	}
+}
+
+// StartAllNativeWireGuard starts all WireGuard configs as native tunnels
+func (a *App) StartAllNativeWireGuard() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	if !a.nativeWG.IsInstalled() {
+		return map[string]interface{}{
+			"success":          false,
+			"error":            "WireGuard не установлен",
+			"install_required": true,
+		}
+	}
+	
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+	
+	started := 0
+	errors := []string{}
+	
+	for i, wg := range settings.WireGuardConfigs {
+		nativeConfig := wg.ToWireGuardConfig()
+		if err := a.nativeWG.StartTunnel(i, nativeConfig); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", wg.Tag, err))
+		} else {
+			started++
+		}
+	}
+	
+	result := map[string]interface{}{
+		"success": len(errors) == 0,
+		"started": started,
+		"total":   len(settings.WireGuardConfigs),
+	}
+	
+	if len(errors) > 0 {
+		result["errors"] = errors
+	}
+	
+	a.writeLog(fmt.Sprintf("Started %d/%d Native WireGuard tunnels", started, len(settings.WireGuardConfigs)))
+	
+	return result
+}
+
+// GetNativeWireGuardTunnels returns list of active native tunnels
+func (a *App) GetNativeWireGuardTunnels() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+			"tunnels": []TunnelState{},
+		}
+	}
+	
+	tunnels := a.nativeWG.GetActiveTunnels()
+	
+	// Enrich with config names
+	settings, _ := a.storage.GetUserSettings()
+	enrichedTunnels := make([]map[string]interface{}, 0, len(tunnels))
+	
+	for _, t := range tunnels {
+		tunnel := map[string]interface{}{
+			"name":       t.Name,
+			"config_id":  t.ConfigID,
+			"started_at": t.StartedAt,
+			"active":     t.Active,
+		}
+		
+		// Find config name
+		if settings != nil && t.ConfigID >= 0 && t.ConfigID < len(settings.WireGuardConfigs) {
+			tunnel["tag"] = settings.WireGuardConfigs[t.ConfigID].Tag
+			tunnel["config_name"] = settings.WireGuardConfigs[t.ConfigID].Name
+		}
+		
+		enrichedTunnels = append(enrichedTunnels, tunnel)
+	}
+	
+	return map[string]interface{}{
+		"success": true,
+		"tunnels": enrichedTunnels,
+		"count":   len(enrichedTunnels),
+	}
+}
+
+// IsNativeWireGuardActive checks if a specific tunnel is active
+func (a *App) IsNativeWireGuardActive(tag string) map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"active":  false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	// Find config index by tag
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"active":  false,
+			"error":   err.Error(),
+		}
+	}
+	
+	for i, wg := range settings.WireGuardConfigs {
+		if wg.Tag == tag {
+			active := a.nativeWG.IsTunnelActive(i)
+			return map[string]interface{}{
+				"success": true,
+				"active":  active,
+				"tag":     tag,
+			}
+		}
+	}
+	
+	return map[string]interface{}{
+		"success": false,
+		"active":  false,
+		"error":   fmt.Sprintf("Конфиг '%s' не найден", tag),
+	}
+}
+
+// GetWireGuardBundleInfo returns info about bundled WireGuard binaries
+func (a *App) GetWireGuardBundleInfo() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard Manager not initialized",
+		}
+	}
+	
+	return map[string]interface{}{
+		"success":       true,
+		"version":       WireGuardVersion,
+		"wintunVersion": WintunVersion,
+		"installed":     a.nativeWG.IsInstalled(),
+		"wireguardPath": a.nativeWG.wireguardPath,
+		"wgPath":        a.nativeWG.wgPath,
 	}
 }
