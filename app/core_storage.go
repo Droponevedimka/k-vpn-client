@@ -780,15 +780,29 @@ func (b *ConfigBuilderForStorage) TestSubscription(subscriptionURL string) (*Sub
 			return result, nil
 		}
 	}
+
+	// Filter unsupported transports (e.g., xhttp which is Xray-only)
+	filterResult := FilterUnsupportedTransports(proxies)
+	proxies = filterResult.Supported
 	
 	if len(proxies) == 0 {
-		result.Error = "Подписка не содержит доступных прокси"
+		if filterResult.AllFiltered {
+			result.Error = filterResult.Message
+		} else {
+			result.Error = "Подписка не содержит доступных прокси"
+		}
 		return result, nil
 	}
 	
 	result.Success = true
 	result.Count = len(proxies)
 	result.IsDirectLink = isDirectLink
+
+	// Add warning about filtered proxies
+	if len(filterResult.Filtered) > 0 {
+		result.Warning = filterResult.Message
+		result.FilteredCount = len(filterResult.Filtered)
+	}
 	
 	for _, p := range proxies {
 		result.Proxies = append(result.Proxies, ProxyInfo{
@@ -865,6 +879,16 @@ func (b *ConfigBuilderForStorage) BuildConfigForProfile(profileID int, subscript
 				proxies[i].Tag = generateTag(proxies[i], i)
 			}
 		}
+
+		// Filter unsupported transports (e.g., xhttp which is Xray-only)
+		filterResult := FilterUnsupportedTransports(proxies)
+		if filterResult.AllFiltered {
+			return fmt.Errorf("%s", filterResult.Message)
+		}
+		if len(filterResult.Filtered) > 0 {
+			fmt.Printf("[BuildConfigForProfile] Warning: %s\n", filterResult.Message)
+		}
+		proxies = filterResult.Supported
 	}
 	
 	// Generate outbounds

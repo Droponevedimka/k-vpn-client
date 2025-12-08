@@ -1,8 +1,0 @@
-sing-box Version: 1.12.12
-Downloaded: 2025-12-07
-Source: https://github.com/SagerNet/sing-box/releases/tag/v1.12.12
-
-Files:
-- windows-amd64/sing-box-1.12.12-windows-amd64/sing-box.exe
-- linux-amd64/sing-box-1.12.12-linux-amd64/sing-box
-- darwin-amd64/sing-box-1.12.12-darwin-amd64/sing-box

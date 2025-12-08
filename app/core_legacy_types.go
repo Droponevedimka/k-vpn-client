@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"time"
 )
 
@@ -56,6 +57,7 @@ func SetAutoStartLegacy(enable bool) error {
 		// Create shortcut using PowerShell
 		psScript := `$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('` + shortcutPath + `'); $Shortcut.TargetPath = '` + exePath + `'; $Shortcut.WorkingDirectory = '` + filepath.Dir(exePath) + `'; $Shortcut.Save()`
 		cmd := exec.Command("powershell", "-Command", psScript)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		return cmd.Run()
 	} else {
 		// Remove shortcut

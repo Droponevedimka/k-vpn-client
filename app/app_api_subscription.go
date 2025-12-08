@@ -20,9 +20,13 @@ func (a *App) TestSubscription(url string) map[string]interface{} {
 		}
 	}
 
+	// Filter unsupported transports (e.g., xhttp which is Xray-only)
+	filterResult := FilterUnsupportedTransports(proxies)
+	filteredProxies := filterResult.Supported
+
 	// Convert proxies to simple format for frontend
 	proxyList := []map[string]interface{}{}
-	for _, p := range proxies {
+	for _, p := range filteredProxies {
 		proxyList = append(proxyList, map[string]interface{}{
 			"type":   p.Type,
 			"name":   p.Name,
@@ -31,11 +35,29 @@ func (a *App) TestSubscription(url string) map[string]interface{} {
 		})
 	}
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"success": true,
-		"count":   len(proxies),
+		"count":   len(filteredProxies),
 		"proxies": proxyList,
 	}
+
+	// Add warning if some proxies were filtered out
+	if len(filterResult.Filtered) > 0 {
+		result["warning"] = filterResult.Message
+		result["filteredCount"] = len(filterResult.Filtered)
+		result["totalOriginal"] = len(proxies)
+
+		// If ALL proxies were filtered, return error
+		if filterResult.AllFiltered {
+			return map[string]interface{}{
+				"success": false,
+				"error":   filterResult.Message,
+				"count":   0,
+			}
+		}
+	}
+
+	return result
 }
 
 // GenerateAndSaveConfig generates config from settings and saves it

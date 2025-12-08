@@ -1,5 +1,5 @@
 {
-    "version": "1.0.3",
+    "version": "1.0.4",
     "name": "Kampus VPN",
     "productName": "KampusVPN",
     "description": "Secure VPN Client with sing-box and WireGuard",
@@ -8,7 +8,7 @@
     "homepage": "https://k-ampus.dev",
     "repository": "https://github.com/Droponevedimka/k-vpn-client",
     "singbox": {
-        "version": "1.12.12",
+        "version": "1.13.0-alpha.27",
         "minVersion": "1.12.0"
     },
     "wireguard": {

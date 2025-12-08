@@ -174,6 +174,12 @@ func (a *App) Start() map[string]interface{} {
 			a.trafficStats.Save()
 		}
 
+		// ALWAYS stop WireGuard tunnels when VPN process exits
+		// This prevents orphaned tunnels that block user's native WireGuard
+		a.mu.Unlock() // Unlock before calling stopNativeWireGuardTunnels to avoid deadlock
+		a.stopNativeWireGuardTunnels()
+		a.mu.Lock()
+
 		if wasStoppedManually {
 			// Manual stop - not an error
 			a.writeLog("VPN stopped by user")

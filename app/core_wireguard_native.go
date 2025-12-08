@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -129,7 +130,54 @@ func (m *NativeWireGuardManager) Init() error {
 		m.log(fmt.Sprintf("WireGuard v%s ready at: %s", WireGuardVersion, m.wireguardPath))
 	}
 	
+	// Clean up orphaned tunnels from previous sessions
+	m.CleanupOrphanedTunnels()
+	
 	return nil
+}
+
+// CleanupOrphanedTunnels removes any kampus-wg-* tunnels left from previous sessions
+func (m *NativeWireGuardManager) CleanupOrphanedTunnels() {
+	if runtime.GOOS != "windows" {
+		return // Only needed on Windows where services persist
+	}
+	
+	m.log("Checking for orphaned tunnels...")
+	
+	// Query Windows services for any kampus-wg-* tunnels
+	// sc query type= service state= all | findstr "kampus-wg"
+	cmd := exec.Command("sc", "query", "type=", "service", "state=", "all")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := cmd.Output()
+	if err != nil {
+		m.log(fmt.Sprintf("Failed to query services: %v", err))
+		return
+	}
+	
+	// Find all kampus-wg-* services
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "SERVICE_NAME:") {
+			serviceName := strings.TrimPrefix(line, "SERVICE_NAME:")
+			serviceName = strings.TrimSpace(serviceName)
+			
+			if strings.HasPrefix(serviceName, "WireGuardTunnel$"+TunnelPrefix) {
+				// Extract tunnel name from service name
+				tunnelName := strings.TrimPrefix(serviceName, "WireGuardTunnel$")
+				m.log(fmt.Sprintf("Found orphaned tunnel: %s, stopping...", tunnelName))
+				
+				// Stop using wireguard.exe /uninstalltunnelservice
+				stopCmd := exec.Command(m.wireguardPath, "/uninstalltunnelservice", tunnelName)
+				stopCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+				if stopOutput, stopErr := stopCmd.CombinedOutput(); stopErr != nil {
+					m.log(fmt.Sprintf("Failed to stop orphaned tunnel %s: %v, output: %s", tunnelName, stopErr, string(stopOutput)))
+				} else {
+					m.log(fmt.Sprintf("Stopped orphaned tunnel: %s", tunnelName))
+				}
+			}
+		}
+	}
 }
 
 // log writes a log message
@@ -345,6 +393,7 @@ func (m *NativeWireGuardManager) StartTunnel(configID int, config *WireGuardConf
 	
 	// Start tunnel using wireguard.exe /installtunnelservice
 	cmd := exec.Command(m.wireguardPath, "/installtunnelservice", confPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -388,6 +437,7 @@ func (m *NativeWireGuardManager) StopTunnel(configID int) error {
 	
 	// Stop tunnel using wireguard.exe /uninstalltunnelservice
 	cmd := exec.Command(m.wireguardPath, "/uninstalltunnelservice", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -402,7 +452,7 @@ func (m *NativeWireGuardManager) StopTunnel(configID int) error {
 	return nil
 }
 
-// StopAllTunnels stops all managed tunnels
+// StopAllTunnels stops all managed tunnels and cleans up orphaned ones
 func (m *NativeWireGuardManager) StopAllTunnels() {
 	m.mu.RLock()
 	tunnelIDs := make([]int, 0)
@@ -418,6 +468,9 @@ func (m *NativeWireGuardManager) StopAllTunnels() {
 			m.log(fmt.Sprintf("Error stopping tunnel %d: %v", id, err))
 		}
 	}
+	
+	// Also cleanup any orphaned tunnels (in case of crash recovery)
+	m.CleanupOrphanedTunnels()
 }
 
 // GetActiveTunnels returns list of active tunnels
@@ -455,6 +508,7 @@ func (m *NativeWireGuardManager) GetTunnelStats(configID int) (map[string]interf
 	name := fmt.Sprintf("%s%d", TunnelPrefix, configID)
 	
 	cmd := exec.Command(m.wgPath, "show", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tunnel stats: %w", err)

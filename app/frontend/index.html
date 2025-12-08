@@ -453,9 +453,10 @@
         .modal-btn.secondary:hover { background: rgba(255,255,255,0.15); }
         .modal-btn.danger { background: rgba(239,68,68,0.2); color: #ef4444; }
         .modal-btn.danger:hover { background: rgba(239,68,68,0.3); }
-        .modal-status { margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px; display: none; user-select: text; cursor: text; }
+        .modal-status { margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px; display: none; user-select: text; cursor: text; white-space: pre-wrap; }
         .modal-status.success { display: block; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
         .modal-status.error { display: block; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .modal-status.warning { display: block; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fcd34d; }
         .modal-status.loading { display: block; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fcd34d; }
 
         .proxy-list, .wg-list {
@@ -2076,7 +2077,17 @@ Endpoint = ..."></textarea>
                 const result = await go.main.App.TestVPNConnection(url);
                 if (result.success) {
                     testedVpnUrl = url;
-                    showVpnModalStatus('success', `✅ Найдено ${result.count} серверов`);
+                    
+                    // Build status message
+                    let statusMsg = `✅ Найдено ${result.count} серверов`;
+                    
+                    // Show warning if some proxies were filtered (unsupported transport)
+                    if (result.warning) {
+                        statusMsg += `\n⚠️ ${result.warning}`;
+                        showVpnModalStatus('warning', statusMsg);
+                    } else {
+                        showVpnModalStatus('success', statusMsg);
+                    }
                     
                     const proxyList = document.getElementById('proxyList');
                     proxyList.innerHTML = result.proxies.map(p => 
