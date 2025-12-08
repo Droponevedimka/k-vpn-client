@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 // GetWireGuardList возвращает список WireGuard конфигов
@@ -38,6 +39,30 @@ func (a *App) GetWireGuardList() map[string]interface{} {
 		"success": true,
 		"configs": configs,
 		"count":   len(configs),
+	}
+}
+
+// GetWireGuardHealth возвращает статус здоровья WireGuard туннелей
+func (a *App) GetWireGuardHealth() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.nativeWG == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Native WireGuard не инициализирован",
+			"tunnels": []map[string]interface{}{},
+		}
+	}
+	
+	tunnels := a.nativeWG.GetTunnelHealthStatus()
+	status := a.nativeWG.GetStatus()
+	
+	return map[string]interface{}{
+		"success":        true,
+		"tunnels":        tunnels,
+		"tunnel_count":   len(tunnels),
+		"wg_installed":   status["installed"],
+		"wg_version":     status["version"],
 	}
 }
 
@@ -107,6 +132,14 @@ func (a *App) AddWireGuard(tag string, name string, configText string) map[strin
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Ошибка парсинга конфига: %v", err),
+		}
+	}
+
+	// Валидируем AllowedIPs на конфликты с sing-box TUN
+	if err := ValidateAllowedIPs(wg.AllowedIPs); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
 		}
 	}
 
@@ -196,6 +229,14 @@ func (a *App) UpdateWireGuard(oldTag string, tag string, name string, configText
 		return map[string]interface{}{
 			"success": false,
 			"error":   fmt.Sprintf("Ошибка парсинга конфига: %v", err),
+		}
+	}
+
+	// Валидируем AllowedIPs на конфликты с sing-box TUN
+	if err := ValidateAllowedIPs(wg.AllowedIPs); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
 		}
 	}
 
@@ -359,6 +400,7 @@ func (a *App) GetWireGuardConfig(tag string) map[string]interface{} {
 				"allowed_ips":          wg.AllowedIPs,
 				"endpoint":             endpoint,
 				"persistent_keepalive": wg.PersistentKeepalive,
+				"internal_domains":     wg.InternalDomains,
 			}
 		}
 	}
@@ -366,6 +408,124 @@ func (a *App) GetWireGuardConfig(tag string) map[string]interface{} {
 	return map[string]interface{}{
 		"success": false,
 		"error":   fmt.Sprintf("Конфиг с тегом '%s' не найден", tag),
+	}
+}
+
+// UpdateWireGuardInternalDomains обновляет список внутренних доменов для WireGuard конфига
+// Эти домены будут резолвиться через системный DNS (WireGuard DNS) вместо hijack-dns
+func (a *App) UpdateWireGuardInternalDomains(tag string, domains []string) map[string]interface{} {
+	a.waitForInit()
+	
+	// Проверяем что VPN выключен
+	a.mu.Lock()
+	if a.isRunning {
+		a.mu.Unlock()
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Нельзя изменять настройки пока VPN активен. Сначала отключите VPN.",
+		}
+	}
+	a.mu.Unlock()
+
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Storage не инициализирован",
+		}
+	}
+
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+
+	// Находим конфиг по тегу
+	foundIndex := -1
+	for i, wg := range settings.WireGuardConfigs {
+		if wg.Tag == tag {
+			foundIndex = i
+			break
+		}
+	}
+
+	if foundIndex == -1 {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Конфиг с тегом '%s' не найден", tag),
+		}
+	}
+
+	// Нормализуем домены (убираем пробелы, добавляем точку в начало)
+	normalizedDomains := make([]string, 0, len(domains))
+	for _, d := range domains {
+		d = strings.TrimSpace(strings.ToLower(d))
+		if d == "" {
+			continue
+		}
+		if !strings.HasPrefix(d, ".") {
+			d = "." + d
+		}
+		normalizedDomains = append(normalizedDomains, d)
+	}
+
+	// Обновляем домены
+	settings.WireGuardConfigs[foundIndex].InternalDomains = normalizedDomains
+
+	// Перегенерируем sing-box конфиг
+	if err := a.configBuilder.BuildConfigForProfile(
+		a.storage.GetActiveProfileID(),
+		settings.SubscriptionURL,
+		settings.WireGuardConfigs,
+	); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+	}
+
+	// Собираем все внутренние домены для информации
+	allDomains := CollectAllInternalDomains(settings.WireGuardConfigs)
+
+	return map[string]interface{}{
+		"success":       true,
+		"tag":           tag,
+		"domains":       normalizedDomains,
+		"all_domains":   allDomains,
+		"domains_count": len(normalizedDomains),
+	}
+}
+
+// GetAllInternalDomains возвращает все собранные внутренние домены из всех WireGuard конфигов
+func (a *App) GetAllInternalDomains() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Storage не инициализирован",
+			"domains": []string{},
+		}
+	}
+
+	settings, err := a.storage.GetUserSettings()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+			"domains": []string{},
+		}
+	}
+
+	domains := CollectAllInternalDomains(settings.WireGuardConfigs)
+
+	return map[string]interface{}{
+		"success":      true,
+		"domains":      domains,
+		"count":        len(domains),
+		"wireguard_count": len(settings.WireGuardConfigs),
 	}
 }
 

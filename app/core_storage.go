@@ -380,6 +380,50 @@ func (s *Storage) DeleteProfile(id int) error {
 	return fmt.Errorf("profile with ID %d not found", id)
 }
 
+// ReplaceAllProfiles replaces ALL profiles with imported ones.
+// This is used for full import - all existing profiles are removed and replaced.
+func (s *Storage) ReplaceAllProfiles(profiles []ProfileData) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	if len(profiles) == 0 {
+		return fmt.Errorf("cannot import empty profiles list")
+	}
+	
+	// Ensure at least one profile has ID=1 (default profile)
+	hasDefault := false
+	for _, p := range profiles {
+		if p.ID == DefaultProfileID {
+			hasDefault = true
+			break
+		}
+	}
+	
+	if !hasDefault {
+		// Set first profile as default
+		profiles[0].ID = DefaultProfileID
+	}
+	
+	// Replace all profiles
+	s.data.Profiles = profiles
+	
+	// Validate active profile ID
+	activeExists := false
+	for _, p := range profiles {
+		if p.ID == s.data.App.ActiveProfileID {
+			activeExists = true
+			break
+		}
+	}
+	
+	if !activeExists {
+		// Set to default profile
+		s.data.App.ActiveProfileID = DefaultProfileID
+	}
+	
+	return s.saveInternal()
+}
+
 // --- Profile Settings (Subscription, WireGuard) ---
 
 // UpdateProfileSubscription updates a profile's subscription settings.
@@ -546,42 +590,6 @@ func (s *Storage) removeWireGuardFromConfig(config map[string]interface{}) {
 			}
 			route["rules"] = filtered
 		}
-	}
-}
-
-// migrateWireGuardToOutbounds adds WireGuard configs to outbounds if not present
-// DEPRECATED: WireGuard is now managed by Native WireGuard Manager
-func (s *Storage) migrateWireGuardToOutbounds(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
-	if len(wireGuardConfigs) == 0 {
-		return
-	}
-	
-	outbounds, ok := config["outbounds"].([]interface{})
-	if !ok {
-		outbounds = []interface{}{}
-	}
-	
-	// Check which WireGuard tags are already in outbounds
-	existingTags := make(map[string]bool)
-	for _, ob := range outbounds {
-		if obMap, ok := ob.(map[string]interface{}); ok {
-			if tag, ok := obMap["tag"].(string); ok {
-				existingTags[tag] = true
-			}
-		}
-	}
-	
-	// Add missing WireGuard configs at the beginning of outbounds
-	newOutbounds := []interface{}{}
-	for _, wg := range wireGuardConfigs {
-		if !existingTags[wg.Tag] {
-			newOutbounds = append(newOutbounds, wg.ToSingboxOutbound())
-		}
-	}
-	
-	// Prepend new WireGuard outbounds
-	if len(newOutbounds) > 0 {
-		config["outbounds"] = append(newOutbounds, outbounds...)
 	}
 }
 
@@ -955,26 +963,6 @@ func (b *ConfigBuilderForStorage) generateOutbounds(template map[string]interfac
 	// action: "hijack-dns" вместо outbound: "dns-out"
 	
 	return outbounds
-}
-
-// addWireGuardEndpoints adds WireGuard to endpoints section.
-func (b *ConfigBuilderForStorage) addWireGuardEndpoints(template map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
-	if len(wireGuardConfigs) == 0 {
-		return
-	}
-	
-	endpoints, _ := template["endpoints"].([]interface{})
-	if endpoints == nil {
-		endpoints = []interface{}{}
-	}
-	
-	for _, wg := range wireGuardConfigs {
-		// Use the existing ToSingboxEndpoint method
-		endpoint := wg.ToSingboxEndpoint()
-		endpoints = append(endpoints, endpoint)
-	}
-	
-	template["endpoints"] = endpoints
 }
 
 // addWireGuardDNS adds DNS servers for WireGuard networks.

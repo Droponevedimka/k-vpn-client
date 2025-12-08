@@ -373,9 +373,14 @@ func (b *ConfigBuilder) generateOutbounds(template map[string]interface{}, proxi
 	return outbounds
 }
 
-// addWireGuardDNS добавляет DNS серверы для WireGuard конфигов
-// WireGuard работает нативно через Windows, поэтому DNS запросы идут через direct
-// (система сама маршрутизирует их через WireGuard интерфейс на основе AllowedIPs)
+// addWireGuardDNS настраивает DNS для WireGuard конфигов
+// 
+// ВАЖНО: Внутренние домены (.local, .internal, .corp, etc.) теперь резолвятся
+// через dns-local (системный резолвер) в template.json, который автоматически 
+// использует DNS из WireGuard интерфейса на основе системных маршрутов.
+//
+// Эта функция добавляет ДОПОЛНИТЕЛЬНЫЕ правила для внутренних доменов,
+// которые должны резолвиться через системный DNS (WireGuard DNS)
 func (b *ConfigBuilder) addWireGuardDNS(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
 	if len(wireGuardConfigs) == 0 {
 		return
@@ -386,94 +391,81 @@ func (b *ConfigBuilder) addWireGuardDNS(config map[string]interface{}, wireGuard
 		return
 	}
 
-	// Получаем существующие серверы
-	servers, ok := dns["servers"].([]interface{})
-	if !ok {
-		return
-	}
-
 	// Получаем существующие DNS rules
 	dnsRules, _ := dns["rules"].([]interface{})
 	if dnsRules == nil {
 		dnsRules = []interface{}{}
 	}
 
-	// Добавляем DNS серверы и правила для каждого WireGuard с DNS
-	for _, wg := range wireGuardConfigs {
-		if wg.DNS == "" {
-			continue
-		}
-
-		dnsTag := fmt.Sprintf("dns-%s", wg.Tag)
-
-		// Добавляем DNS сервер - без detour, WireGuard интерфейс сам обработает маршрутизацию
-		servers = append(servers, map[string]interface{}{
-			"type":        "udp",
-			"tag":         dnsTag,
-			"server":      wg.DNS,
-			"server_port": 53,
-		})
-
-		// Добавляем DNS rule для доменов из Endpoint
-		// Извлекаем базовый домен из endpoint
-		domainSuffixes := []string{}
-		if wg.Endpoint != "" {
-			// Добавляем домен endpoint и .local варианты
-			parts := strings.Split(wg.Endpoint, ".")
-			if len(parts) >= 2 {
-				baseDomain := "." + strings.Join(parts[len(parts)-2:], ".")
-				domainSuffixes = append(domainSuffixes, baseDomain)
+	// Собираем все внутренние домены из всех WireGuard конфигов
+	collectedDomains := CollectAllInternalDomains(wireGuardConfigs)
+	
+	// Фильтруем старые WireGuard DNS правила (по domain_suffix совпадению)
+	filteredRules := []interface{}{}
+	for _, rule := range dnsRules {
+		if ruleMap, ok := rule.(map[string]interface{}); ok {
+			// Проверяем является ли это WG правилом по содержимому domain_suffix
+			if domainSuffix, hasDomains := ruleMap["domain_suffix"].([]interface{}); hasDomains {
+				server, _ := ruleMap["server"].(string)
+				if server == "dns-local" && len(domainSuffix) > 0 {
+					// Проверяем совпадение с нашими доменами
+					isWgRule := false
+					for _, d := range domainSuffix {
+						domStr, _ := d.(string)
+						for _, wgDomain := range collectedDomains {
+							if domStr == wgDomain {
+								isWgRule = true
+								break
+							}
+						}
+						if isWgRule {
+							break
+						}
+					}
+					if isWgRule {
+						continue // Пропускаем старое WG правило
+					}
+				}
 			}
 		}
-		// Добавляем .local для внутренних сетей
-		domainSuffixes = append(domainSuffixes, ".local", fmt.Sprintf(".%s.local", wg.Tag))
-
-		// Вставляем DNS rule в начало
+		filteredRules = append(filteredRules, rule)
+	}
+	dnsRules = filteredRules
+	
+	// Если есть внутренние домены - добавляем DNS правило (БЕЗ _comment!)
+	if len(collectedDomains) > 0 {
 		dnsRule := map[string]interface{}{
-			"domain_suffix": domainSuffixes,
+			"domain_suffix": collectedDomains,
 			"action":        "route",
-			"server":        dnsTag,
+			"server":        "dns-local", // Системный DNS (использует WireGuard DNS)
 		}
+		
+		// Добавляем в начало правил (высший приоритет, до hijack-dns)
 		dnsRules = append([]interface{}{dnsRule}, dnsRules...)
+		
+		fmt.Printf("[addWireGuardDNS] Added DNS rule for internal domains: %v\n", collectedDomains)
 	}
 
-	dns["servers"] = servers
 	dns["rules"] = dnsRules
-}
-
-// addWireGuardEndpoints добавляет WireGuard конфиги в секцию endpoints (sing-box 1.12+)
-func (b *ConfigBuilder) addWireGuardEndpoints(config map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
-	if len(wireGuardConfigs) == 0 {
-		return
-	}
-
-	// Получаем существующие endpoints или создаём новый массив
-	var endpoints []interface{}
-	if existing, ok := config["endpoints"].([]interface{}); ok {
-		endpoints = existing
-	} else {
-		endpoints = []interface{}{}
-	}
-
-	// Добавляем WireGuard endpoints
-	for _, wg := range wireGuardConfigs {
-		endpoints = append(endpoints, wg.ToSingboxEndpoint())
-	}
-
-	config["endpoints"] = endpoints
 }
 
 // updateRouteRulesForWireGuard обновляет правила маршрутизации для WireGuard
 // Порядок маршрутизации:
-// 1. sniff, hijack-dns
-// 2. WireGuard внутренние сети (по AllowedIPs каждого WireGuard в порядке добавления)
-// 3. Прямой доступ к RU зоне (ip_is_private, geosite-ru, etc.)
-// 4. Через proxy (final)
+// 1. sniff
+// 2. DNS bypass для WireGuard сетей (исключаем hijack-dns для корп. DNS)
+// 3. hijack-dns для остального трафика  
+// 4. WireGuard внутренние сети (по AllowedIPs каждого WireGuard в порядке добавления)
+// 5. Прямой доступ к RU зоне (ip_is_private, geosite-ru, etc.)
+// 6. Через proxy (final)
 //
 // ВАЖНО: WireGuard работает нативно через Windows, поэтому маршруты должны
 // указывать на "direct", а не на WireGuard outbound. Нативный WireGuard
 // сам перехватит трафик на основе AllowedIPs.
 func (b *ConfigBuilder) updateRouteRulesForWireGuard(template map[string]interface{}, wireGuardConfigs []UserWireGuardConfig) {
+	if len(wireGuardConfigs) == 0 {
+		return
+	}
+
 	route, ok := template["route"].(map[string]interface{})
 	if !ok {
 		return
@@ -484,10 +476,17 @@ func (b *ConfigBuilder) updateRouteRulesForWireGuard(template map[string]interfa
 		rules = []interface{}{}
 	}
 
-	// Собираем все AllowedIPs из WireGuard конфигов
+	// Собираем все AllowedIPs и DNS серверы из WireGuard конфигов
 	allWireGuardCIDRs := []string{}
+	allWireGuardDNS := []string{}
+	allInternalDomains := CollectAllInternalDomains(wireGuardConfigs)
+	
 	for _, wg := range wireGuardConfigs {
-		allWireGuardCIDRs = append(allWireGuardCIDRs, wg.AllowedIPs...)
+		networks := ExtractNetworksFromAllowedIPs(wg.AllowedIPs)
+		allWireGuardCIDRs = append(allWireGuardCIDRs, networks...)
+		if wg.DNS != "" {
+			allWireGuardDNS = append(allWireGuardDNS, wg.DNS)
+		}
 	}
 
 	// Фильтруем существующие WireGuard правила (удаляем старые)
@@ -518,41 +517,108 @@ func (b *ConfigBuilder) updateRouteRulesForWireGuard(template map[string]interfa
 				continue // Удаляем старые WireGuard правила
 			}
 		}
+		
+		// Пропускаем правила с domain_suffix, совпадающими с внутренними доменами
+		if domainSuffix, ok := ruleMap["domain_suffix"].([]interface{}); ok {
+			outbound, _ := ruleMap["outbound"].(string)
+			if outbound == "direct" && len(domainSuffix) > 0 {
+				isWgDomainRule := false
+				for _, d := range domainSuffix {
+					domStr, _ := d.(string)
+					for _, wgDomain := range allInternalDomains {
+						if domStr == wgDomain {
+							isWgDomainRule = true
+							break
+						}
+					}
+					if isWgDomainRule {
+						break
+					}
+				}
+				if isWgDomainRule {
+					continue // Удаляем старые WireGuard domain правила
+				}
+			}
+		}
+		
 		filteredRules = append(filteredRules, rule)
 	}
 
-	// Находим позицию после hijack-dns (перед ip_is_private)
-	insertIdx := 0
+	// Находим позицию после sniff (перед hijack-dns)
+	sniffIdx := -1
 	for i, rule := range filteredRules {
 		if ruleMap, ok := rule.(map[string]interface{}); ok {
 			action, _ := ruleMap["action"].(string)
-			if action == "hijack-dns" {
-				insertIdx = i + 1
-				break
-			}
 			if action == "sniff" {
-				insertIdx = i + 1
+				sniffIdx = i
 			}
 		}
 	}
 
-	// Создаём единое правило для всех WireGuard сетей
-	// Трафик идёт через "direct" - нативный WireGuard перехватит его
+	// Создаём новые правила для WireGuard (БЕЗ _comment - sing-box не поддерживает!)
+	// ВСЕ правила должны быть ДО hijack-dns, чтобы трафик сразу шёл в direct
+	// без попыток DNS резолвинга через sing-box
+	newRules := []interface{}{}
+
+	// 1. DNS bypass: DNS запросы к WireGuard DNS серверам идут через direct БЕЗ hijack
+	// Это предотвращает DNS leak - запросы пойдут через WireGuard интерфейс
+	if len(allWireGuardDNS) > 0 {
+		dnsRule := map[string]interface{}{
+			"protocol": "dns",
+			"ip_cidr":  allWireGuardDNS,
+			"action":   "route",
+			"outbound": "direct",
+		}
+		newRules = append(newRules, dnsRule)
+	}
+	
+	// 2. Route правило для внутренних доменов WireGuard
+	if len(allInternalDomains) > 0 {
+		domainRule := map[string]interface{}{
+			"domain_suffix": allInternalDomains,
+			"action":        "route",
+			"outbound":      "direct",
+		}
+		newRules = append(newRules, domainRule)
+	}
+
+	// 3. Правило для IP сетей из AllowedIPs - для мгновенной маршрутизации
 	if len(allWireGuardCIDRs) > 0 {
 		wgRule := map[string]interface{}{
 			"ip_cidr":  allWireGuardCIDRs,
-			"outbound": "direct", // WireGuard интерфейс сам обработает маршрутизацию
+			"action":   "route",
+			"outbound": "direct",
 		}
+		newRules = append(newRules, wgRule)
+	}
 
-		// Вставляем WireGuard правило ПЕРЕД ip_is_private и direct правилами
-		finalRules := make([]interface{}, 0, len(filteredRules)+1)
-		finalRules = append(finalRules, filteredRules[:insertIdx]...)
-		finalRules = append(finalRules, wgRule)
-		finalRules = append(finalRules, filteredRules[insertIdx:]...)
+	// Вставляем ВСЕ правила сразу после sniff, ПЕРЕД hijack-dns
+	// Это обеспечивает быстрый доступ к внутренним ресурсам без задержек
+	if len(newRules) > 0 {
+		finalRules := []interface{}{}
+		
+		// Добавляем sniff если есть
+		if sniffIdx >= 0 {
+			finalRules = append(finalRules, filteredRules[:sniffIdx+1]...)
+		}
+		
+		// Добавляем ВСЕ WireGuard правила сразу после sniff
+		finalRules = append(finalRules, newRules...)
+		
+		// Добавляем остальные правила (включая hijack-dns и всё после)
+		if sniffIdx >= 0 && sniffIdx+1 < len(filteredRules) {
+			finalRules = append(finalRules, filteredRules[sniffIdx+1:]...)
+		} else if sniffIdx < 0 {
+			// Если нет sniff, добавляем WG правила в начало
+			finalRules = append(newRules, filteredRules...)
+		}
+		
 		filteredRules = finalRules
 	}
 
 	route["rules"] = filteredRules
+	fmt.Printf("[updateRouteRulesForWireGuard] Added DNS bypass for %d DNS servers, %d internal domains, route for %d CIDRs\n", 
+		len(allWireGuardDNS), len(allInternalDomains), len(allWireGuardCIDRs))
 }
 
 // generateTag генерирует уникальный тег для прокси

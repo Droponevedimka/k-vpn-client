@@ -82,6 +82,8 @@ function renderWireGuardConfigs() {
     // Render configs
     html += wireGuardConfigs.map(config => {
         const isActive = isNativeTunnelActive(config.tag);
+        const domains = config.internal_domains || [];
+        const domainsText = domains.length > 0 ? domains.join(', ') : '';
         return `
         <div class="wireguard-item ${isActive ? 'active-tunnel' : ''}" 
              data-tag="${escapeHtml(config.tag)}">
@@ -92,6 +94,7 @@ function renderWireGuardConfigs() {
                 <div class="wireguard-details">
                     <span class="wireguard-name">${escapeHtml(config.name || config.tag)}</span>
                     <span class="wireguard-endpoint">${escapeHtml(config.endpoint || '')}</span>
+                    ${domainsText ? `<span class="wireguard-domains" title="${t('internalDomains')}: ${escapeHtml(domainsText)}">${escapeHtml(domainsText)}</span>` : ''}
                 </div>
             </div>
             <div class="wireguard-actions">

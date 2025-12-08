@@ -191,3 +191,75 @@
     font-size: 11px;
     margin: 0;
 }
+
+/* WireGuard item styling */
+.wireguard-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 2px solid transparent;
+    margin-bottom: 6px;
+}
+.wireguard-item:hover {
+    background: rgba(0,0,0,0.3);
+    transform: translateX(3px);
+}
+.wireguard-item.active-tunnel {
+    background: rgba(100,255,218,0.1);
+    border-left-color: #64ffda;
+    box-shadow: 0 0 20px rgba(100,255,218,0.1);
+}
+.wireguard-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+.wireguard-info svg {
+    flex-shrink: 0;
+    color: #667eea;
+}
+.wireguard-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.wireguard-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ccd6f6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wireguard-endpoint {
+    font-size: 10px;
+    color: #8892b0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wireguard-domains {
+    font-size: 9px;
+    color: #667eea;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+.wireguard-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.tunnel-badge.active {
+    background: rgba(100,255,218,0.15);
+    color: #64ffda;
+}

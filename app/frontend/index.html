@@ -694,15 +694,36 @@
         .toast {
             background: rgba(30,39,68,0.95); backdrop-filter: blur(10px);
             border-radius: 12px; padding: 10px 14px;
-            display: flex; align-items: center; gap: 10px; 
+            display: flex; align-items: flex-start; gap: 10px; 
             box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.1);
-            border-left: 3px solid #667eea; animation: toastIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); max-width: 260px;
+            border-left: 3px solid #667eea; animation: toastIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); max-width: 320px;
         }
         .toast.success { border-left-color: #22c55e; }
         .toast.error { border-left-color: #ef4444; }
         .toast.warning { border-left-color: #f59e0b; }
-        .toast .icon { font-size: 16px; }
-        .toast .message { font-size: 11px; color: #d1d5db; }
+        .toast .icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+        .toast .toast-content { flex: 1; min-width: 0; }
+        .toast .message { 
+            font-size: 11px; color: #d1d5db; 
+            user-select: text; cursor: text; 
+            word-break: break-word; 
+            line-height: 1.4;
+        }
+        .toast .toast-actions {
+            display: flex; gap: 6px; margin-top: 6px;
+        }
+        .toast .toast-btn {
+            background: rgba(255,255,255,0.1); border: none; color: #a0aec0;
+            padding: 3px 8px; border-radius: 4px; font-size: 9px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toast .toast-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+        .toast .toast-btn.copied { background: #22c55e; color: #fff; }
+        .toast .toast-close {
+            background: none; border: none; color: #6b7280; cursor: pointer;
+            font-size: 14px; padding: 0; margin-left: 4px; flex-shrink: 0;
+        }
+        .toast .toast-close:hover { color: #fff; }
         .toast.hide { animation: toastOut 0.3s ease forwards; }
         @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
@@ -1104,6 +1125,24 @@ Endpoint = ..."></textarea>
                 </div>
             </div>
             
+            <div class="settings-group">
+                <div class="settings-group-title">📦 Импорт / Экспорт</div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Экспорт профилей</div>
+                        <div class="desc">Сохранить все профили и настройки в файл</div>
+                    </div>
+                    <button class="modal-btn secondary" style="flex: 0; padding: 4px 10px; font-size: 10px;" onclick="exportProfiles()">📤 Экспорт</button>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Импорт профилей</div>
+                        <div class="desc">Загрузить профили из файла (заменит текущие!)</div>
+                    </div>
+                    <button class="modal-btn secondary" style="flex: 0; padding: 4px 10px; font-size: 10px;" onclick="importProfiles()">📥 Импорт</button>
+                </div>
+            </div>
+            
             <div class="modal-buttons">
                 <button class="modal-btn secondary" onclick="openFolder()">📁 Папка</button>
                 <button class="modal-btn secondary" onclick="closeModal('settingsModal')">Закрыть</button>
@@ -1479,6 +1518,8 @@ Endpoint = ..."></textarea>
                 delete: 'Удалить',
                 edit: 'Редактировать',
                 folder: 'Папка',
+                copy: 'Копировать',
+                copied: 'Скопировано',
                 settingsSaved: 'Настройки сохранены',
                 // Errors
                 error: 'Ошибка',
@@ -1553,6 +1594,8 @@ Endpoint = ..."></textarea>
                 delete: 'Delete',
                 edit: 'Edit',
                 folder: 'Folder',
+                copy: 'Copy',
+                copied: 'Copied',
                 settingsSaved: 'Settings saved',
                 // Errors
                 error: 'Error',
@@ -2398,6 +2441,97 @@ Endpoint = ..."></textarea>
             }
         }
         
+        // ==================== Import/Export Profiles ====================
+        async function exportProfiles() {
+            try {
+                // Check if method exists
+                if (!window.go?.main?.App?.ExportProfilesToFile) {
+                    console.error('ExportProfilesToFile not found. Available methods:', Object.keys(window.go?.main?.App || {}));
+                    showToast('error', 'Метод экспорта недоступен. Перезапустите приложение.');
+                    return;
+                }
+                
+                const result = await window.go.main.App.ExportProfilesToFile();
+                
+                if (result.success) {
+                    showToast('success', `Экспортировано ${result.profiles_count} профилей`);
+                } else {
+                    if (result.error !== 'Отменено пользователем') {
+                        showToast('error', result.error || 'Ошибка экспорта');
+                    }
+                }
+            } catch (e) {
+                console.error('Export profiles error:', e);
+                showToast('error', 'Ошибка экспорта: ' + e.message);
+            }
+        }
+        
+        async function importProfiles() {
+            try {
+                // Check if method exists
+                if (!window.go?.main?.App?.ImportProfilesFromFile) {
+                    console.error('ImportProfilesFromFile not found. Available methods:', Object.keys(window.go?.main?.App || {}));
+                    showToast('error', 'Метод импорта недоступен. Перезапустите приложение.');
+                    return;
+                }
+                
+                const result = await window.go.main.App.ImportProfilesFromFile();
+                
+                if (!result.success) {
+                    if (result.error !== 'Отменено пользователем') {
+                        showToast('error', result.error || 'Ошибка импорта');
+                    }
+                    return;
+                }
+                
+                // Show confirmation dialog
+                if (result.needs_confirmation) {
+                    showImportConfirmDialog(result);
+                }
+            } catch (e) {
+                console.error('Import profiles error:', e);
+                showToast('error', 'Ошибка импорта: ' + e.message);
+            }
+        }
+        
+        function showImportConfirmDialog(validationResult) {
+            const profileNames = validationResult.profile_names || [];
+            const profilesList = profileNames.map(name => `• ${name}`).join('\n');
+            
+            const message = `Вы уверены что хотите импортировать профили?
+
+Найдено профилей: ${validationResult.profiles_count}
+WireGuard конфигов: ${validationResult.wireguard_count}
+Включает шаблон: ${validationResult.has_template ? 'Да' : 'Нет'}
+
+Профили:
+${profilesList}
+
+⚠️ ВНИМАНИЕ: Все текущие профили будут заменены!`;
+            
+            if (confirm(message)) {
+                confirmImport(validationResult.file_data);
+            }
+        }
+        
+        async function confirmImport(jsonData) {
+            try {
+                const result = await go.main.App.ConfirmImportProfiles(jsonData);
+                
+                if (result.success) {
+                    showToast('success', `Импортировано ${result.profiles_count} профилей`);
+                    // Reload profiles UI
+                    loadProfiles();
+                    loadWireGuardServers();
+                } else {
+                    showToast('error', result.error || 'Ошибка импорта');
+                }
+            } catch (e) {
+                console.error('Confirm import error:', e);
+                showToast('error', 'Ошибка импорта: ' + e.message);
+            }
+        }
+        
         // Apply theme to UI
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
@@ -3093,22 +3227,99 @@ Endpoint = ..."></textarea>
 
         // ==================== Notifications / Toast ====================
         function showToast(type, message) {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            
-            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
-            toast.innerHTML = `
-                <span class="icon">${icons[type] || 'ℹ️'}</span>
-                <span class="message">${message}</span>
-            `;
-            
-            container.appendChild(toast);
-            
-            setTimeout(() => {
+            try {
+                const container = document.getElementById('toastContainer');
+                if (!container) {
+                    console.error('Toast container not found');
+                    return;
+                }
+                
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+                const isError = type === 'error' || type === 'warning';
+                
+                // Log errors to application logs (async, don't wait)
+                if (isError && typeof go !== 'undefined' && go.main && go.main.App && go.main.App.AddToLogBuffer) {
+                    const logLevel = type === 'error' ? 'ERROR' : 'WARNING';
+                    go.main.App.AddToLogBuffer(`[${logLevel}] UI: ${message}`).catch(e => console.error('Log error:', e));
+                }
+                
+                const toastId = 'toast-' + Date.now();
+                toast.id = toastId;
+                
+                // Get translation safely
+                const copyText = (typeof t === 'function' ? t('copy') : null) || 'Копировать';
+                
+                let actionsHtml = '';
+                if (isError) {
+                    actionsHtml = `
+                        <div class="toast-actions">
+                            <button class="toast-btn" onclick="copyToastMessage('${toastId}')">📋 ${copyText}</button>
+                        </div>
+                    `;
+                }
+                
+                toast.innerHTML = `
+                    <span class="icon">${icons[type] || 'ℹ️'}</span>
+                    <div class="toast-content">
+                        <span class="message">${message}</span>
+                        ${actionsHtml}
+                    </div>
+                    <button class="toast-close" onclick="closeToast('${toastId}')">×</button>
+                `;
+                
+                container.appendChild(toast);
+                
+                // Longer timeout for errors (8s) vs success (3s)
+                const timeout = isError ? 8000 : 3000;
+                
+                setTimeout(() => {
+                    if (document.getElementById(toastId)) {
+                        toast.classList.add('hide');
+                        setTimeout(() => toast.remove(), 300);
+                    }
+                }, timeout);
+            } catch (e) {
+                console.error('showToast error:', e);
+            }
+        }
+        
+        function copyToastMessage(toastId) {
+            try {
+                const toast = document.getElementById(toastId);
+                if (!toast) return;
+                
+                const messageEl = toast.querySelector('.message');
+                if (!messageEl) return;
+                
+                const message = messageEl.textContent;
+                const copiedText = (typeof t === 'function' ? t('copied') : null) || 'Скопировано';
+                const copyText = (typeof t === 'function' ? t('copy') : null) || 'Копировать';
+                
+                navigator.clipboard.writeText(message).then(() => {
+                    const btn = toast.querySelector('.toast-btn');
+                    if (btn) {
+                        btn.classList.add('copied');
+                        btn.textContent = '✓ ' + copiedText;
+                        setTimeout(() => {
+                            btn.classList.remove('copied');
+                            btn.textContent = '📋 ' + copyText;
+                        }, 2000);
+                    }
+                }).catch(e => console.error('Copy error:', e));
+            } catch (e) {
+                console.error('copyToastMessage error:', e);
+            }
+        }
+        
+        function closeToast(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
                 toast.classList.add('hide');
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }
         }
 
         function showNotification(title, body) {

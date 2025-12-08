@@ -22,6 +22,11 @@
     ],
     "rules": [
       {
+        "domain_suffix": [".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private"],
+        "action": "route",
+        "server": "dns-local"
+      },
+      {
         "rule_set": ["geosite-category-ru", "geosite-yandex", "geosite-vk", "geosite-mailru"],
         "action": "route",
         "server": "dns-direct"
@@ -61,7 +66,6 @@
       "listen_port": 2080
     }
   ],
-  "_comment_outbounds": "Outbounds будут сгенерированы автоматически из подписки",
   "outbounds_template": {
     "selector": {
       "type": "selector",
@@ -124,6 +128,11 @@
     "rules": [
       {
         "action": "sniff"
+      },
+      {
+        "domain_suffix": [".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private"],
+        "action": "route",
+        "outbound": "direct"
       },
       {
         "protocol": "dns",

@@ -55,6 +55,11 @@ function initializeAPI() {
                 GetWireGuardVersion: go.main.App.GetWireGuardVersion,
                 SetWireGuardVersion: go.main.App.SetWireGuardVersion,
                 
+                // WireGuard Internal Domains (DNS routing)
+                UpdateWireGuardInternalDomains: go.main.App.UpdateWireGuardInternalDomains,
+                GetAllInternalDomains: go.main.App.GetAllInternalDomains,
+                GetWireGuardHealth: go.main.App.GetWireGuardHealth,
+                
                 // Logs
                 GetLogPath: go.main.App.GetLogPath,
                 GetRecentLogs: go.main.App.GetRecentLogs,
@@ -69,6 +74,14 @@ function initializeAPI() {
                 SaveSettings: go.main.App.SaveSettings,
                 GetLanguage: go.main.App.GetLanguage,
                 SetLanguage: go.main.App.SetLanguage,
+                
+                // Import/Export
+                ExportProfilesToFile: go.main.App.ExportProfilesToFile,
+                ImportProfilesFromFile: go.main.App.ImportProfilesFromFile,
+                ConfirmImportProfiles: go.main.App.ConfirmImportProfiles,
+                ValidateImportData: go.main.App.ValidateImportData,
+                ExportAllProfiles: go.main.App.ExportAllProfiles,
+                ImportAllProfiles: go.main.App.ImportAllProfiles,
                 
                 // System
                 GetVersion: go.main.App.GetVersion,

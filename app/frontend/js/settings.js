@@ -214,35 +214,115 @@ async function clearLogs() {
     }
 }
 
-// Export settings
-function exportSettings() {
-    const dataStr = JSON.stringify(appSettings, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'kampusvpn-settings.json';
-    a.click();
-    
-    URL.revokeObjectURL(url);
-    showToast(t('settingsExported'), 'success');
+// ============================================================================
+// Import/Export Profiles
+// ============================================================================
+
+// Export all profiles to JSON file
+async function exportProfiles() {
+    try {
+        if (!API.ExportProfilesToFile) {
+            showToast(t('exportNotAvailable'), 'error');
+            return;
+        }
+        
+        const result = await API.ExportProfilesToFile();
+        
+        if (result.success) {
+            showToast(t('profilesExported', { count: result.profiles_count }), 'success');
+        } else {
+            if (result.error !== 'Отменено пользователем') {
+                showToast(result.error, 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Export profiles error:', error);
+        showToast(t('exportFailed'), 'error');
+    }
 }
 
-// Import settings
-function importSettings(file) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const imported = JSON.parse(e.target.result);
-            appSettings = { ...appSettings, ...imported };
-            applySettingsToUI();
-            await saveSettings();
-            showToast(t('settingsImported'), 'success');
-        } catch (error) {
-            console.error('Import settings error:', error);
-            showToast(t('settingsImportFailed'), 'error');
+// Import profiles from JSON file
+async function importProfiles() {
+    try {
+        if (!API.ImportProfilesFromFile) {
+            showToast(t('importNotAvailable'), 'error');
+            return;
         }
-    };
-    reader.readAsText(file);
+        
+        const result = await API.ImportProfilesFromFile();
+        
+        if (!result.success) {
+            if (result.error !== 'Отменено пользователем') {
+                showToast(result.error, 'error');
+            }
+            return;
+        }
+        
+        // Show confirmation dialog
+        if (result.needs_confirmation) {
+            showImportConfirmDialog(result);
+        }
+    } catch (error) {
+        console.error('Import profiles error:', error);
+        showToast(t('importFailed'), 'error');
+    }
+}
+
+// Show import confirmation dialog
+function showImportConfirmDialog(validationResult) {
+    const profileNames = validationResult.profile_names || [];
+    const profilesList = profileNames.map(name => `• ${name}`).join('\n');
+    
+    const message = `${t('importConfirmMessage')}
+
+${t('profilesFound')}: ${validationResult.profiles_count}
+${t('wireGuardConfigs')}: ${validationResult.wireguard_count}
+${t('hasTemplate')}: ${validationResult.has_template ? t('yes') : t('no')}
+
+${t('profiles')}:
+${profilesList}
+
+${t('importWarning')}`;
+    
+    if (confirm(message)) {
+        confirmImport(validationResult.file_data);
+    }
+}
+
+// Confirm and execute import
+async function confirmImport(jsonData) {
+    try {
+        if (!API.ConfirmImportProfiles) {
+            showToast(t('importNotAvailable'), 'error');
+            return;
+        }
+        
+        const result = await API.ConfirmImportProfiles(jsonData);
+        
+        if (result.success) {
+            showToast(t('profilesImported', { count: result.profiles_count }), 'success');
+            // Reload profiles UI
+            if (typeof loadProfiles === 'function') {
+                await loadProfiles();
+            }
+            // Reload WireGuard configs
+            if (typeof loadWireGuardConfigs === 'function') {
+                await loadWireGuardConfigs();
+            }
+        } else {
+            showToast(result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Confirm import error:', error);
+        showToast(t('importFailed'), 'error');
+    }
+}
+
+// Legacy functions for backward compatibility
+function exportSettings() {
+    exportProfiles();
+}
+
+function importSettings(file) {
+    importProfiles();
 }

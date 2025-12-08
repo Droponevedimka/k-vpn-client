@@ -87,8 +87,10 @@ func (a *App) shutdown(ctx context.Context) {
 	// Stop sing-box
 	a.Stop()
 	
-	// Stop all Native WireGuard tunnels
+	// Stop WireGuard health check and all tunnels
 	if a.nativeWG != nil {
+		a.writeLog("Stopping WireGuard health check...")
+		a.nativeWG.StopHealthCheck()
 		a.writeLog("Stopping all Native WireGuard tunnels...")
 		a.nativeWG.StopAllTunnels()
 	}

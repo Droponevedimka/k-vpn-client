@@ -22,6 +22,11 @@ type UserWireGuardConfig struct {
 	Endpoint       string   `json:"endpoint"`         // [Peer] Endpoint (host без порта)
 	EndpointPort   int      `json:"endpoint_port"`    // Порт из Endpoint
 	PersistentKeepalive int `json:"persistent_keepalive,omitempty"` // [Peer] PersistentKeepalive
+	
+	// Внутренние домены для этого VPN (опционально, пользователь может добавить вручную)
+	// Примеры: [".company.local", ".internal.corp", ".test-test.com"]
+	// Если пусто - автоматически извлекаются из Endpoint
+	InternalDomains []string `json:"internal_domains,omitempty"`
 }
 
 // ParseWireGuardConfig парсит стандартный WireGuard конфиг
@@ -154,104 +159,51 @@ func ValidateTag(tag string) error {
 	return nil
 }
 
-// ToSingboxOutbound конвертирует WireGuard конфиг в sing-box outbound (deprecated но работает до 1.13.0)
-// Используем outbound вместо endpoint чтобы работал detour в DNS серверах
-func (wg *UserWireGuardConfig) ToSingboxOutbound() map[string]interface{} {
-	// Резолвим hostname в IP если нужно
-	endpointAddr := wg.Endpoint
-	if net.ParseIP(endpointAddr) == nil {
-		// Это hostname, пробуем резолвить
-		ips, err := net.LookupIP(endpointAddr)
-		if err == nil && len(ips) > 0 {
-			// Предпочитаем IPv4
-			for _, ip := range ips {
-				if ipv4 := ip.To4(); ipv4 != nil {
-					endpointAddr = ipv4.String()
-					break
-				}
-			}
-			if net.ParseIP(endpointAddr) == nil && len(ips) > 0 {
-				endpointAddr = ips[0].String()
+// ValidateAllowedIPs проверяет AllowedIPs на конфликты с sing-box TUN
+// Возвращает ошибку если AllowedIPs содержат 0.0.0.0/0 или ::/0 (конфликт с sing-box)
+func ValidateAllowedIPs(allowedIPs []string) error {
+	conflictingCIDRs := []string{
+		"0.0.0.0/0",
+		"::/0",
+		"0.0.0.0/1",
+		"128.0.0.0/1",
+	}
+	
+	for _, ip := range allowedIPs {
+		ip = strings.TrimSpace(ip)
+		for _, conflict := range conflictingCIDRs {
+			if ip == conflict {
+				return fmt.Errorf("AllowedIPs содержит %s, что конфликтует с sing-box TUN. "+
+					"Используйте конкретные подсети вместо полного перенаправления трафика", ip)
 			}
 		}
 	}
-
-	// Deprecated WireGuard outbound format (без вложенного peers)
-	// peer_public_key и pre_shared_key на верхнем уровне
-	outbound := map[string]interface{}{
-		"type":            "wireguard",
-		"tag":             wg.Tag,
-		"server":          endpointAddr,
-		"server_port":     wg.EndpointPort,
-		"local_address":   wg.LocalAddress,
-		"private_key":     wg.PrivateKey,
-		"peer_public_key": wg.PublicKey,
-	}
-
-	if wg.PresharedKey != "" {
-		outbound["pre_shared_key"] = wg.PresharedKey
-	}
-
-	if wg.MTU > 0 {
-		outbound["mtu"] = wg.MTU
-	}
-
-	return outbound
+	return nil
 }
 
-// ToSingboxEndpoint конвертирует WireGuard конфиг в sing-box endpoint (новый формат 1.12+)
-// ПРИМЕЧАНИЕ: endpoints пока не поддерживают detour в DNS, поэтому используем ToSingboxOutbound()
-func (wg *UserWireGuardConfig) ToSingboxEndpoint() map[string]interface{} {
-	// Резолвим hostname в IP если нужно
-	endpointAddr := wg.Endpoint
-	if net.ParseIP(endpointAddr) == nil {
-		// Это hostname, пробуем резолвить
-		ips, err := net.LookupIP(endpointAddr)
-		if err == nil && len(ips) > 0 {
-			// Предпочитаем IPv4
-			for _, ip := range ips {
-				if ipv4 := ip.To4(); ipv4 != nil {
-					endpointAddr = ipv4.String()
-					break
+// ExtractNetworksFromAllowedIPs извлекает сетевые адреса из AllowedIPs для DNS bypass
+// Возвращает список CIDR, которые относятся к WireGuard сетям
+func ExtractNetworksFromAllowedIPs(allowedIPs []string) []string {
+	var networks []string
+	for _, cidr := range allowedIPs {
+		cidr = strings.TrimSpace(cidr)
+		// Проверяем что это валидный CIDR
+		_, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// Может быть одиночный IP, добавляем /32
+			if ip := net.ParseIP(cidr); ip != nil {
+				if ip.To4() != nil {
+					cidr = cidr + "/32"
+				} else {
+					cidr = cidr + "/128"
 				}
-			}
-			if net.ParseIP(endpointAddr) == nil && len(ips) > 0 {
-				endpointAddr = ips[0].String()
+			} else {
+				continue
 			}
 		}
+		networks = append(networks, cidr)
 	}
-
-	// Формируем peer
-	peer := map[string]interface{}{
-		"public_key":  wg.PublicKey,
-		"allowed_ips": wg.AllowedIPs,
-		"address":     endpointAddr,
-		"port":        wg.EndpointPort,
-	}
-
-	if wg.PresharedKey != "" {
-		peer["pre_shared_key"] = wg.PresharedKey
-	}
-
-	if wg.PersistentKeepalive > 0 {
-		peer["persistent_keepalive_interval"] = wg.PersistentKeepalive
-	}
-
-	endpoint := map[string]interface{}{
-		"type":        "wireguard",
-		"tag":         wg.Tag,
-		"system":      false,
-		"name":        wg.Tag,
-		"private_key": wg.PrivateKey,
-		"address":     wg.LocalAddress,
-		"peers":       []interface{}{peer},
-	}
-
-	if wg.MTU > 0 {
-		endpoint["mtu"] = wg.MTU
-	}
-
-	return endpoint
+	return networks
 }
 
 // GenerateRouteRulesForWireGuard генерирует правила маршрутизации для WireGuard
@@ -273,10 +225,11 @@ func GenerateRouteRulesForWireGuard(configs []UserWireGuardConfig) []map[string]
 
 // WireGuardInfo информация для UI
 type WireGuardInfo struct {
-	Tag        string   `json:"tag"`
-	Name       string   `json:"name"`
-	Endpoint   string   `json:"endpoint"`
-	AllowedIPs []string `json:"allowed_ips"`
+	Tag             string   `json:"tag"`
+	Name            string   `json:"name"`
+	Endpoint        string   `json:"endpoint"`
+	AllowedIPs      []string `json:"allowed_ips"`
+	InternalDomains []string `json:"internal_domains,omitempty"`
 }
 
 // ToInfo конвертирует в структуру для UI
@@ -287,11 +240,100 @@ func (wg *UserWireGuardConfig) ToInfo() WireGuardInfo {
 	}
 	
 	return WireGuardInfo{
-		Tag:        wg.Tag,
-		Name:       wg.Name,
-		Endpoint:   endpoint,
-		AllowedIPs: wg.AllowedIPs,
+		Tag:             wg.Tag,
+		Name:            wg.Name,
+		Endpoint:        endpoint,
+		AllowedIPs:      wg.AllowedIPs,
+		InternalDomains: wg.InternalDomains,
 	}
+}
+
+// GetInternalDomains возвращает все внутренние домены для этого WireGuard конфига
+// Если InternalDomains задан явно - возвращает его
+// Иначе пытается автоматически извлечь из Endpoint
+func (wg *UserWireGuardConfig) GetInternalDomains() []string {
+	// Если пользователь явно указал домены - используем их
+	if len(wg.InternalDomains) > 0 {
+		return wg.InternalDomains
+	}
+	
+	// Автоматическое извлечение из Endpoint
+	domains := []string{}
+	
+	if wg.Endpoint != "" {
+		// Извлекаем домен из endpoint (например, vpn.company.local -> .company.local)
+		parts := strings.Split(wg.Endpoint, ".")
+		if len(parts) >= 2 {
+			// Берём последние 2+ части как возможные внутренние домены
+			// vpn.internal.company.local -> [.company.local, .internal.company.local]
+			for i := len(parts) - 2; i >= 0 && i >= len(parts)-3; i-- {
+				domain := "." + strings.Join(parts[i:], ".")
+				if !isStandardInternalDomain(domain) && !isPublicDomain(domain) {
+					domains = append(domains, domain)
+				}
+			}
+		}
+	}
+	
+	return domains
+}
+
+// CollectAllInternalDomains собирает все внутренние домены из всех WireGuard конфигов
+// Возвращает уникальный список доменов для DNS rules
+func CollectAllInternalDomains(configs []UserWireGuardConfig) []string {
+	seen := make(map[string]bool)
+	var domains []string
+	
+	for _, wg := range configs {
+		for _, domain := range wg.GetInternalDomains() {
+			domain = strings.ToLower(strings.TrimSpace(domain))
+			if domain == "" {
+				continue
+			}
+			// Добавляем точку в начало если нет
+			if !strings.HasPrefix(domain, ".") {
+				domain = "." + domain
+			}
+			if !seen[domain] {
+				seen[domain] = true
+				domains = append(domains, domain)
+			}
+		}
+	}
+	
+	return domains
+}
+
+// isStandardInternalDomain проверяет является ли домен стандартным внутренним
+// Эти домены уже есть в template.json, не нужно дублировать
+func isStandardInternalDomain(domain string) bool {
+	standardDomains := []string{
+		".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private",
+	}
+	domain = strings.ToLower(domain)
+	for _, std := range standardDomains {
+		if domain == std {
+			return true
+		}
+	}
+	return false
+}
+
+// isPublicDomain проверяет является ли домен публичным
+func isPublicDomain(domain string) bool {
+	publicTLDs := []string{
+		".com", ".net", ".org", ".io", ".dev", ".app", ".co", ".me", ".info",
+		".ru", ".su", ".рф", ".ua", ".by", ".kz", ".uz",
+		".de", ".fr", ".uk", ".eu", ".us", ".cn", ".jp", ".kr",
+		".edu", ".gov", ".mil",
+	}
+	domain = strings.ToLower(domain)
+	for _, tld := range publicTLDs {
+		if strings.HasSuffix(domain, tld) {
+			return true
+		}
+	}
+	return false
 }
 
 // WireGuardConfig is the format used by NativeWireGuardManager

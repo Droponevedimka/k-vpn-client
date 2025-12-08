@@ -376,6 +376,14 @@ func (a *App) startNativeWireGuardTunnels() {
 	
 	a.writeLog(fmt.Sprintf("Starting %d Native WireGuard tunnel(s)...", len(settings.WireGuardConfigs)))
 	
+	// Set up restart callback for health check
+	a.nativeWG.SetTunnelRestartCallback(func(configID int) {
+		a.writeLog(fmt.Sprintf("[WireGuard] Tunnel %d was restarted by health check", configID))
+		a.AddToLogBuffer(fmt.Sprintf("WireGuard туннель %d: переподключен", configID))
+		// Emit event to frontend
+		wailsRuntime.EventsEmit(a.ctx, "wireguard-tunnel-restarted", configID)
+	})
+	
 	started := 0
 	for i, wg := range settings.WireGuardConfigs {
 		a.writeLog(fmt.Sprintf("[WireGuard] Processing config %d: tag=%s, name=%s, endpoint=%s, allowedIPs=%v", 
@@ -396,6 +404,10 @@ func (a *App) startNativeWireGuardTunnels() {
 	
 	if started > 0 {
 		a.writeLog(fmt.Sprintf("[WireGuard] Started %d/%d tunnels", started, len(settings.WireGuardConfigs)))
+		
+		// Start health check monitoring
+		a.nativeWG.StartHealthCheck()
+		a.writeLog("[WireGuard] Health check monitoring started")
 	}
 }
 
@@ -404,6 +416,9 @@ func (a *App) stopNativeWireGuardTunnels() {
 	if a.nativeWG == nil {
 		return
 	}
+	
+	// Stop health check first
+	a.nativeWG.StopHealthCheck()
 	
 	a.writeLog("Stopping Native WireGuard tunnels...")
 	a.nativeWG.StopAllTunnels()

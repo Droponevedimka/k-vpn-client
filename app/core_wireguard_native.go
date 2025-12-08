@@ -47,21 +47,37 @@ type NativeWireGuardManager struct {
 	configDir     string                  // Directory for .conf files
 	wireguardPath string                  // Path to wireguard executable
 	wgPath        string                  // Path to wg tool (for status)
-	wintunPath    string                  // Path to wintun.dll (Windows only)
-	tunnels       map[string]*TunnelState // Active tunnels
-	mu            sync.RWMutex
-	logger        func(string)            // Logging function
+	wintunPath       string                  // Path to wintun.dll (Windows only)
+	tunnels          map[string]*TunnelState // Active tunnels
+	mu               sync.RWMutex
+	logger           func(string)            // Logging function
+	healthCheckStop  chan struct{}           // Stop signal for health check
+	healthCheckWg    sync.WaitGroup          // Wait group for health check goroutine
+	onTunnelRestart  func(configID int)      // Callback when tunnel is restarted
 }
 
 // TunnelState tracks the state of a WireGuard tunnel
 type TunnelState struct {
-	Name       string    `json:"name"`
-	ConfigID   int       `json:"config_id"`
-	ConfigPath string    `json:"config_path"`
-	StartedAt  time.Time `json:"started_at"`
-	Active     bool      `json:"active"`
-	PID        int       `json:"pid,omitempty"` // For Linux/macOS processes
+	Name           string    `json:"name"`
+	ConfigID       int       `json:"config_id"`
+	ConfigPath     string    `json:"config_path"`
+	StartedAt      time.Time `json:"started_at"`
+	Active         bool      `json:"active"`
+	PID            int       `json:"pid,omitempty"`       // For Linux/macOS processes
+	LastHandshake  time.Time `json:"last_handshake"`      // Last successful handshake
+	Healthy        bool      `json:"healthy"`             // Current health status
+	RestartCount   int       `json:"restart_count"`       // Number of restarts
+	Config         *WireGuardConfig `json:"-"`            // Original config for restart
 }
+
+// HealthCheckInterval defines how often to check tunnel health
+const HealthCheckInterval = 30 * time.Second
+
+// HandshakeTimeout defines maximum time since last handshake before considering unhealthy
+const HandshakeTimeout = 3 * time.Minute
+
+// MaxRestartAttempts defines maximum restart attempts before giving up
+const MaxRestartAttempts = 3
 
 // NewNativeWireGuardManager creates a new Native WireGuard Manager
 // Expects bundled binaries in the same directory as the executable
@@ -343,6 +359,8 @@ func (m *NativeWireGuardManager) StartTunnel(configID int, config *WireGuardConf
 		ConfigPath: confPath,
 		StartedAt:  time.Now(),
 		Active:     true,
+		Healthy:    true, // Assume healthy on start
+		Config:     config, // Store config for potential restart
 	}
 	
 	m.log(fmt.Sprintf("Tunnel %s started successfully", name))
@@ -537,4 +555,222 @@ func checksumFile(path string) (string, error) {
 	}
 	
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// SetTunnelRestartCallback sets a callback function to be called when a tunnel is restarted
+func (m *NativeWireGuardManager) SetTunnelRestartCallback(callback func(configID int)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onTunnelRestart = callback
+}
+
+// StartHealthCheck starts a background goroutine that monitors tunnel health
+func (m *NativeWireGuardManager) StartHealthCheck() {
+	m.mu.Lock()
+	if m.healthCheckStop != nil {
+		m.mu.Unlock()
+		return // Already running
+	}
+	m.healthCheckStop = make(chan struct{})
+	m.mu.Unlock()
+	
+	m.healthCheckWg.Add(1)
+	go m.healthCheckLoop()
+	m.log("Health check started")
+}
+
+// StopHealthCheck stops the health check goroutine
+func (m *NativeWireGuardManager) StopHealthCheck() {
+	m.mu.Lock()
+	if m.healthCheckStop == nil {
+		m.mu.Unlock()
+		return // Not running
+	}
+	close(m.healthCheckStop)
+	m.healthCheckStop = nil
+	m.mu.Unlock()
+	
+	m.healthCheckWg.Wait()
+	m.log("Health check stopped")
+}
+
+// healthCheckLoop periodically checks tunnel health
+func (m *NativeWireGuardManager) healthCheckLoop() {
+	defer m.healthCheckWg.Done()
+	
+	ticker := time.NewTicker(HealthCheckInterval)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-m.healthCheckStop:
+			return
+		case <-ticker.C:
+			m.checkAllTunnels()
+		}
+	}
+}
+
+// checkAllTunnels checks health of all active tunnels
+func (m *NativeWireGuardManager) checkAllTunnels() {
+	m.mu.RLock()
+	tunnelsToCheck := make([]*TunnelState, 0)
+	for _, state := range m.tunnels {
+		if state.Active {
+			tunnelsToCheck = append(tunnelsToCheck, state)
+		}
+	}
+	m.mu.RUnlock()
+	
+	for _, state := range tunnelsToCheck {
+		healthy, lastHandshake := m.checkTunnelHealth(state.ConfigID)
+		
+		m.mu.Lock()
+		if tunnelState, exists := m.tunnels[state.Name]; exists {
+			tunnelState.LastHandshake = lastHandshake
+			oldHealthy := tunnelState.Healthy
+			tunnelState.Healthy = healthy
+			
+			if !healthy && oldHealthy {
+				m.log(fmt.Sprintf("Tunnel %s became unhealthy (last handshake: %v)", 
+					state.Name, lastHandshake))
+			}
+			
+			// Attempt restart if unhealthy and under max attempts
+			if !healthy && tunnelState.RestartCount < MaxRestartAttempts && tunnelState.Config != nil {
+				tunnelState.RestartCount++
+				m.mu.Unlock()
+				
+				m.log(fmt.Sprintf("Attempting to restart tunnel %s (attempt %d/%d)", 
+					state.Name, tunnelState.RestartCount, MaxRestartAttempts))
+				
+				if err := m.restartTunnel(state.ConfigID, tunnelState.Config); err != nil {
+					m.log(fmt.Sprintf("Failed to restart tunnel %s: %v", state.Name, err))
+				} else {
+					m.log(fmt.Sprintf("Tunnel %s restarted successfully", state.Name))
+					if m.onTunnelRestart != nil {
+						m.onTunnelRestart(state.ConfigID)
+					}
+				}
+				continue
+			}
+		}
+		m.mu.Unlock()
+	}
+}
+
+// checkTunnelHealth checks if a tunnel is healthy based on handshake time
+func (m *NativeWireGuardManager) checkTunnelHealth(configID int) (bool, time.Time) {
+	stats, err := m.GetTunnelStats(configID)
+	if err != nil {
+		return false, time.Time{}
+	}
+	
+	// Parse last handshake time
+	handshakeStr, _ := stats["last_handshake"].(string)
+	if handshakeStr == "" || handshakeStr == "never" {
+		return false, time.Time{}
+	}
+	
+	// Parse relative time like "1 minute, 30 seconds ago"
+	lastHandshake := m.parseHandshakeTime(handshakeStr)
+	if lastHandshake.IsZero() {
+		return false, time.Time{}
+	}
+	
+	// Check if handshake is within timeout
+	healthy := time.Since(lastHandshake) < HandshakeTimeout
+	return healthy, lastHandshake
+}
+
+// parseHandshakeTime parses the handshake time string from wg show output
+func (m *NativeWireGuardManager) parseHandshakeTime(s string) time.Time {
+	s = strings.TrimSpace(s)
+	
+	// Handle "never"
+	if s == "never" || s == "" {
+		return time.Time{}
+	}
+	
+	// Try to parse relative time like "1 minute, 30 seconds ago"
+	s = strings.TrimSuffix(s, " ago")
+	
+	var duration time.Duration
+	parts := strings.Split(s, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		
+		// Try to parse each part
+		if strings.Contains(part, "second") {
+			var n int
+			fmt.Sscanf(part, "%d", &n)
+			duration += time.Duration(n) * time.Second
+		} else if strings.Contains(part, "minute") {
+			var n int
+			fmt.Sscanf(part, "%d", &n)
+			duration += time.Duration(n) * time.Minute
+		} else if strings.Contains(part, "hour") {
+			var n int
+			fmt.Sscanf(part, "%d", &n)
+			duration += time.Duration(n) * time.Hour
+		} else if strings.Contains(part, "day") {
+			var n int
+			fmt.Sscanf(part, "%d", &n)
+			duration += time.Duration(n) * 24 * time.Hour
+		}
+	}
+	
+	if duration == 0 {
+		return time.Time{}
+	}
+	
+	return time.Now().Add(-duration)
+}
+
+// restartTunnel stops and restarts a tunnel
+func (m *NativeWireGuardManager) restartTunnel(configID int, config *WireGuardConfig) error {
+	// Stop the tunnel first
+	if err := m.StopTunnel(configID); err != nil {
+		m.log(fmt.Sprintf("Warning: error stopping tunnel during restart: %v", err))
+	}
+	
+	// Wait a bit for cleanup
+	time.Sleep(2 * time.Second)
+	
+	// Start the tunnel again
+	return m.StartTunnel(configID, config)
+}
+
+// GetTunnelHealthStatus returns health status for all tunnels
+func (m *NativeWireGuardManager) GetTunnelHealthStatus() []map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	var result []map[string]interface{}
+	for _, state := range m.tunnels {
+		if state.Active {
+			status := map[string]interface{}{
+				"name":           state.Name,
+				"config_id":      state.ConfigID,
+				"healthy":        state.Healthy,
+				"last_handshake": state.LastHandshake.Format(time.RFC3339),
+				"restart_count":  state.RestartCount,
+				"uptime":         time.Since(state.StartedAt).String(),
+			}
+			result = append(result, status)
+		}
+	}
+	return result
+}
+
+// ResetRestartCount resets the restart counter for a tunnel (called after successful reconnect)
+func (m *NativeWireGuardManager) ResetRestartCount(configID int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	name := fmt.Sprintf("%s%d", TunnelPrefix, configID)
+	if state, exists := m.tunnels[name]; exists {
+		state.RestartCount = 0
+		state.Healthy = true
+	}
 }
