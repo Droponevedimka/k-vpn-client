@@ -120,12 +120,48 @@ func (a *App) initStorage() {
 	// Create config builder for storage
 	a.configBuilder = NewConfigBuilderForStorage(a.storage)
 	
+	// Set routing mode from settings
+	settings := a.storage.GetAppSettings()
+	if settings.RoutingMode != "" {
+		a.configBuilder.SetRoutingMode(settings.RoutingMode)
+	}
+	
+	// Check filter freshness
+	a.checkFiltersFreshness()
+	
 	// Migrate from old format if needed
 	if err := a.storage.MigrateFromOldFormat(a.basePath); err != nil {
 		a.writeLog(fmt.Sprintf("Migration error: %v", err))
 	}
 	
 	a.writeLog("Storage initialized: " + a.storage.GetResourcesPath())
+}
+
+// checkFiltersFreshness checks if routing filters are outdated and notifies user
+func (a *App) checkFiltersFreshness() {
+	filterManager := NewFilterManager(a.basePath)
+	
+	// Check if filters exist
+	if !filterManager.EnsureFiltersExist() {
+		a.writeLog("Routing filters not found - please reinstall or update filters")
+		a.AddToLogBuffer("⚠️ Фильтры не найдены. Обновите фильтры в настройках.")
+		return
+	}
+	
+	// Check freshness
+	isOutdated, daysOld, err := filterManager.CheckFreshness()
+	if err != nil {
+		a.writeLog(fmt.Sprintf("Failed to check filters freshness: %v", err))
+		return
+	}
+	
+	if isOutdated {
+		message := fmt.Sprintf("Routing filters are outdated (%d days old). Consider updating in Settings.", daysOld)
+		a.writeLog(message)
+		a.AddToLogBuffer(fmt.Sprintf("⚠️ Фильтры устарели (%d дней). Обновите в настройках.", daysOld))
+	} else if daysOld >= 0 {
+		a.writeLog(fmt.Sprintf("Routing filters OK (updated %d days ago)", daysOld))
+	}
 }
 
 // initNativeWireGuard initializes the Native WireGuard Manager

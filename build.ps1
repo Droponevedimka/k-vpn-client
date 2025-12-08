@@ -206,6 +206,27 @@ function Build-Application {
         Write-Host "[OK] Copied template.json" -ForegroundColor Green
     }
     
+    # Copy filters (rule-sets for routing)
+    $filtersDir = Join-Path $DepsDir "filters"
+    $filtersDest = Join-Path $binDir "filters"
+    if (Test-Path $filtersDir) {
+        if (-not (Test-Path $filtersDest)) {
+            New-Item -ItemType Directory -Path $filtersDest | Out-Null
+        }
+        # Copy all .srs files and version.json
+        Get-ChildItem -Path $filtersDir -Filter "*.srs" | ForEach-Object {
+            Copy-Item $_.FullName $filtersDest -Force
+        }
+        $filtersVersion = Join-Path $filtersDir "version.json"
+        if (Test-Path $filtersVersion) {
+            Copy-Item $filtersVersion $filtersDest -Force
+        }
+        $filterCount = (Get-ChildItem -Path $filtersDest -Filter "*.srs").Count
+        Write-Host "[OK] Copied bin/filters/ ($filterCount rule-sets)" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Filters not found at: $filtersDir" -ForegroundColor Yellow
+    }
+    
     # Create portable ZIP automatically after build (clean version name for distribution)
     $zipFile = Join-Path $ReleaseDir "KampusVPN-$AppVersion.zip"
     if (Test-Path $zipFile) {

@@ -227,18 +227,29 @@ func (a *App) logOutput(reader io.Reader, prefix string) {
 		// Add to log buffer for UI (always)
 		a.AddToLogBuffer(fmt.Sprintf("[%s] %s", prefix, line))
 
-		// Check for critical errors only (not DNS resolution failures)
+		// Check for critical errors only (not normal network errors)
 		lineLower := strings.ToLower(line)
-		isCriticalError := (strings.Contains(lineLower, "error") || strings.Contains(lineLower, "fatal")) &&
-			// Ignore DNS resolution errors for local/internal domains
-			!strings.Contains(lineLower, "dns: exchange failed") &&
-			!strings.Contains(lineLower, "context deadline exceeded") &&
-			// Ignore connection refused (normal when server is down)
-			!strings.Contains(lineLower, "connection refused") &&
-			// Ignore i/o timeout (normal network fluctuation)
-			!strings.Contains(lineLower, "i/o timeout")
 		
-		if isCriticalError {
+		// Определяем действительно критические ошибки
+		isCriticalError := strings.Contains(lineLower, "fatal") &&
+			// Но не ошибки rule-set (можно продолжить без них)
+			!strings.Contains(lineLower, "rule-set")
+		
+		// Игнорируем обычные сетевые ошибки (не критичны):
+		// - IPv6 unreachable (нет IPv6 - норма)
+		// - DNS resolution failures
+		// - Connection refused/timeout
+		// - Network unreachable для отдельных соединений
+		isIgnorableError := strings.Contains(lineLower, "unreachable network") ||
+			strings.Contains(lineLower, "dns: exchange failed") ||
+			strings.Contains(lineLower, "context deadline exceeded") ||
+			strings.Contains(lineLower, "connection refused") ||
+			strings.Contains(lineLower, "i/o timeout") ||
+			strings.Contains(lineLower, "network is unreachable") ||
+			strings.Contains(lineLower, "no route to host") ||
+			strings.Contains(lineLower, "connectex:")
+		
+		if isCriticalError && !isIgnorableError {
 			a.mu.Lock()
 			a.hasError = true
 			a.mu.Unlock()

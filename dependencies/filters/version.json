@@ -1,0 +1,38 @@
+{
+    "filters_version": "2025-12-08",
+    "updated_at": "2025-12-08T08:30:00Z",
+    "source": "https://github.com/1andrevich/Re-filter-lists",
+    "max_age_days": 30,
+    "files": {
+        "refilter_domains": {
+            "file": "refilter_domains.srs",
+            "description": "Заблокированные домены РКН",
+            "source_url": "https://github.com/1andrevich/Re-filter-lists/releases/latest/download/ruleset-domain-refilter_domains.srs",
+            "entries": 20000
+        },
+        "refilter_ips": {
+            "file": "refilter_ips.srs",
+            "description": "Заблокированные IP адреса РКН",
+            "source_url": "https://github.com/1andrevich/Re-filter-lists/releases/latest/download/ruleset-ip-refilter_ipsum.srs",
+            "entries": 13000
+        },
+        "community_domains": {
+            "file": "community_domains.srs",
+            "description": "Домены блокирующие доступ из РФ (Discord, Adobe, etc.)",
+            "source_url": "https://raw.githubusercontent.com/1andrevich/Re-filter-lists/main/community.lst",
+            "entries": 492
+        },
+        "community_ips": {
+            "file": "community_ips.srs",
+            "description": "IP адреса блокирующие доступ из РФ",
+            "source_url": "https://raw.githubusercontent.com/1andrevich/Re-filter-lists/main/community_ips.lst",
+            "entries": 5
+        },
+        "discord_ips": {
+            "file": "discord_ips.srs",
+            "description": "IP адреса Discord",
+            "source_url": "https://raw.githubusercontent.com/1andrevich/Re-filter-lists/main/discord_ips.lst",
+            "entries": 2321
+        }
+    }
+}

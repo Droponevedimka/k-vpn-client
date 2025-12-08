@@ -1,5 +1,5 @@
 {
-    "version": "1.0.4",
+    "version": "1.0.5",
     "name": "Kampus VPN",
     "productName": "KampusVPN",
     "description": "Secure VPN Client with sing-box and WireGuard",
@@ -17,6 +17,6 @@
     },
     "build": {
         "appId": "dev.kampus.vpn",
-        "copyright": "Copyright © 2024 K-AMPUS"
+        "copyright": "Copyright © 2025 K-AMPUS"
     }
 }

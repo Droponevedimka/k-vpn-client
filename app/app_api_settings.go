@@ -254,3 +254,232 @@ func (a *App) ImportProfilesFromFile() map[string]interface{} {
 func (a *App) ConfirmImportProfiles(jsonData string) map[string]interface{} {
 	return a.ImportAllProfiles(jsonData)
 }
+
+// ============================================================================
+// Routing Mode API methods
+// ============================================================================
+
+// GetRoutingMode returns current routing mode
+func (a *App) GetRoutingMode() map[string]interface{} {
+	a.waitForInit()
+	
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Хранилище не инициализировано",
+		}
+	}
+	
+	settings := a.storage.GetAppSettings()
+	mode := settings.RoutingMode
+	
+	// Default to blocked_only if empty
+	if mode == "" {
+		mode = DefaultRoutingMode
+	}
+	
+	// Get mode descriptions for UI
+	modeDescriptions := map[string]string{
+		string(RoutingModeBlockedOnly):   "Только заблокированные",
+		string(RoutingModeExceptRussia):  "Всё кроме России",
+		string(RoutingModeAllTraffic):    "Весь трафик",
+	}
+	
+	return map[string]interface{}{
+		"success":     true,
+		"mode":        string(mode),
+		"description": modeDescriptions[string(mode)],
+		"modes": []map[string]string{
+			{"value": string(RoutingModeBlockedOnly), "label": "Только заблокированные", "description": "Через VPN идут только заблокированные сайты (РКН + сервисы, блокирующие РФ). Минимальная нагрузка на VPN."},
+			{"value": string(RoutingModeExceptRussia), "label": "Всё кроме России", "description": "Весь зарубежный трафик через VPN, российские сайты напрямую."},
+			{"value": string(RoutingModeAllTraffic), "label": "Весь трафик", "description": "Весь трафик через VPN. Максимальная приватность, высокая нагрузка."},
+		},
+	}
+}
+
+// SetRoutingMode sets routing mode and rebuilds config
+func (a *App) SetRoutingMode(mode string) map[string]interface{} {
+	a.waitForInit()
+	
+	if a.storage == nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Хранилище не инициализировано",
+		}
+	}
+	
+	// Validate mode
+	routingMode := RoutingMode(mode)
+	switch routingMode {
+	case RoutingModeBlockedOnly, RoutingModeExceptRussia, RoutingModeAllTraffic:
+		// Valid mode
+	default:
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Неизвестный режим маршрутизации: %s", mode),
+		}
+	}
+	
+	// Check if VPN is running
+	a.mu.Lock()
+	isRunning := a.isRunning
+	a.mu.Unlock()
+	
+	if isRunning {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Нельзя изменить режим пока VPN активен. Сначала отключите VPN.",
+		}
+	}
+	
+	// Update settings
+	settings := a.storage.GetAppSettings()
+	settings.RoutingMode = routingMode
+	
+	if err := a.storage.UpdateAppSettings(settings); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка сохранения настроек: %v", err),
+		}
+	}
+	
+	// Update config builder
+	if a.configBuilder != nil {
+		a.configBuilder.SetRoutingMode(routingMode)
+	}
+	
+	// Rebuild config for active profile
+	if err := a.RebuildActiveProfileConfig(); err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка перестройки конфига: %v", err),
+		}
+	}
+	
+	a.writeLog(fmt.Sprintf("Routing mode changed to: %s", mode))
+	
+	return map[string]interface{}{
+		"success": true,
+		"message": "Режим маршрутизации изменён",
+		"mode":    mode,
+	}
+}
+
+// ============================================================================
+// Filters API methods
+// ============================================================================
+
+// GetFiltersInfo returns information about bundled filters
+func (a *App) GetFiltersInfo() map[string]interface{} {
+	a.waitForInit()
+	
+	// Create filter manager pointing to bin/filters
+	filterManager := NewFilterManager(a.basePath)
+	
+	info, err := filterManager.GetInfo()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка получения информации о фильтрах: %v", err),
+		}
+	}
+	
+	files := filterManager.GetFilterFiles()
+	
+	return map[string]interface{}{
+		"success":        true,
+		"version":        info.Version,
+		"updated_at":     info.UpdatedAt,
+		"days_old":       info.DaysOld,
+		"max_age_days":   info.MaxAgeDays,
+		"is_outdated":    info.IsOutdated,
+		"filter_count":   info.FilterCount,
+		"total_size_kb":  info.TotalSizeKB,
+		"update_message": info.UpdateMessage,
+		"can_update":     info.CanUpdate,
+		"files":          files,
+	}
+}
+
+// UpdateFilters downloads latest Re:filter rule-sets
+func (a *App) UpdateFilters() map[string]interface{} {
+	a.waitForInit()
+	
+	// Check if VPN is running
+	a.mu.Lock()
+	isRunning := a.isRunning
+	a.mu.Unlock()
+	
+	if isRunning {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Нельзя обновить фильтры пока VPN активен. Сначала отключите VPN.",
+		}
+	}
+	
+	// Create filter manager
+	filterManager := NewFilterManager(a.basePath)
+	
+	a.writeLog("Updating Re:filter rule-sets...")
+	a.AddToLogBuffer("Обновление фильтров...")
+	
+	updated, err := filterManager.UpdateRefilters()
+	if err != nil {
+		a.AddToLogBuffer(fmt.Sprintf("Ошибка обновления: %v", err))
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Ошибка обновления фильтров: %v", err),
+		}
+	}
+	
+	if updated == 0 {
+		return map[string]interface{}{
+			"success": false,
+			"error":   "Не удалось обновить ни один фильтр",
+		}
+	}
+	
+	// Rebuild config if in blocked_only mode
+	settings := a.storage.GetAppSettings()
+	if settings.RoutingMode == RoutingModeBlockedOnly {
+		if err := a.RebuildActiveProfileConfig(); err != nil {
+			a.writeLog(fmt.Sprintf("Warning: Failed to rebuild config after filter update: %v", err))
+		}
+	}
+	
+	a.writeLog(fmt.Sprintf("Updated %d filter files", updated))
+	a.AddToLogBuffer(fmt.Sprintf("Обновлено %d файлов фильтров", updated))
+	
+	// Return fresh info
+	info, _ := filterManager.GetInfo()
+	
+	return map[string]interface{}{
+		"success":      true,
+		"message":      fmt.Sprintf("Обновлено %d файлов фильтров", updated),
+		"updated":      updated,
+		"version":      info.Version,
+		"updated_at":   info.UpdatedAt,
+		"is_outdated":  info.IsOutdated,
+	}
+}
+
+// RebuildActiveProfileConfig rebuilds config for active profile
+func (a *App) RebuildActiveProfileConfig() error {
+	if a.storage == nil {
+		return fmt.Errorf("storage not initialized")
+	}
+	
+	profile, err := a.storage.GetActiveProfile()
+	if err != nil || profile == nil {
+		return fmt.Errorf("no active profile: %v", err)
+	}
+	
+	// Get routing mode from settings
+	settings := a.storage.GetAppSettings()
+	if a.configBuilder != nil {
+		a.configBuilder.SetRoutingMode(settings.RoutingMode)
+	}
+	
+	// Rebuild using config builder
+	return a.configBuilder.BuildConfig(profile.SubscriptionURL)
+}

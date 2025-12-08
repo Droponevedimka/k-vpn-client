@@ -22,6 +22,8 @@ type ConfigBuilder struct {
 	templatePath    string
 	basePath        string
 	activeProfileID int
+	routingMode     RoutingMode // Current routing mode
+	filterManager   *FilterManager // Filter manager for rule-sets
 	fetcher         *SubscriptionFetcher
 }
 
@@ -31,6 +33,8 @@ func NewConfigBuilder(basePath string) *ConfigBuilder {
 		templatePath:    filepath.Join(basePath, "template.json"),
 		basePath:        basePath,
 		activeProfileID: DefaultProfileID,
+		routingMode:     DefaultRoutingMode,
+		filterManager:   NewFilterManager(filepath.Dir(basePath)), // bin/filters is sibling to resources
 		fetcher:         NewSubscriptionFetcher(),
 	}
 	return cb
@@ -65,6 +69,21 @@ func (b *ConfigBuilder) SetActiveProfile(profileID int) {
 // GetActiveProfileID возвращает ID активного профиля
 func (b *ConfigBuilder) GetActiveProfileID() int {
 	return b.activeProfileID
+}
+
+// SetRoutingMode sets the routing mode for config generation
+func (b *ConfigBuilder) SetRoutingMode(mode RoutingMode) {
+	b.routingMode = mode
+}
+
+// GetRoutingMode returns current routing mode
+func (b *ConfigBuilder) GetRoutingMode() RoutingMode {
+	return b.routingMode
+}
+
+// GetFilterManager returns the filter manager
+func (b *ConfigBuilder) GetFilterManager() *FilterManager {
+	return b.filterManager
 }
 
 // GetSettingsPath returns the path to settings file for current profile
@@ -282,6 +301,9 @@ func (b *ConfigBuilder) BuildConfigFull(subscriptionURL string, wireGuardConfigs
 	// WireGuard управляется отдельно через Native WireGuard Manager
 	// Удаляем endpoints секцию если она осталась от старого конфига
 	delete(template, "endpoints")
+
+	// Применяем режим маршрутизации (blocked_only, except_russia, all_traffic)
+	b.applyRoutingMode(template)
 
 	// Добавляем experimental секцию с clash_api для статистики трафика
 	b.addExperimentalAPI(template)
@@ -706,4 +728,291 @@ func (b *ConfigBuilder) addExperimentalAPI(template map[string]interface{}) {
 	experimental["clash_api"] = clashAPI
 
 	template["experimental"] = experimental
+}
+
+// applyRoutingMode applies routing rules based on the selected routing mode.
+// This modifies the route section of the config.
+func (b *ConfigBuilder) applyRoutingMode(template map[string]interface{}) {
+	route, ok := template["route"].(map[string]interface{})
+	if !ok {
+		route = map[string]interface{}{}
+		template["route"] = route
+	}
+
+	// Clean up DNS rules that reference remote rule_sets (geosite-*)
+	b.cleanupDNSRuleSets(template)
+
+	// Get existing rules and rule_set
+	existingRules, _ := route["rules"].([]interface{})
+	existingRuleSets, _ := route["rule_set"].([]interface{})
+
+	switch b.routingMode {
+	case RoutingModeBlockedOnly:
+		// Only blocked sites through VPN - use Re:filter + community rule-sets
+		b.applyBlockedOnlyMode(route, existingRules, existingRuleSets)
+		
+	case RoutingModeExceptRussia:
+		// All except Russia through VPN - use built-in domain list
+		b.applyExceptRussiaMode(route)
+		
+	case RoutingModeAllTraffic:
+		// All traffic through VPN - remove direct rules for Russia
+		b.applyAllTrafficMode(route, existingRules, existingRuleSets)
+		
+	default:
+		// Unknown mode, use blocked_only as safest default
+		fmt.Printf("[applyRoutingMode] Unknown mode %s, using blocked_only\n", b.routingMode)
+		b.applyBlockedOnlyMode(route, existingRules, existingRuleSets)
+	}
+}
+
+// applyBlockedOnlyMode configures routing for blocked sites only.
+// Uses Re:filter and community rule-sets to route only blocked traffic through VPN.
+func (b *ConfigBuilder) applyBlockedOnlyMode(route map[string]interface{}, existingRules, existingRuleSets []interface{}) {
+	fmt.Printf("[applyRoutingMode] Using blocked_only mode with local filters\n")
+
+	// Get local filter rule_sets
+	filterRuleSets := b.filterManager.GetRuleSetConfigs()
+	if len(filterRuleSets) == 0 {
+		fmt.Printf("[applyRoutingMode] WARNING: No filter files found, falling back to except_russia\n")
+		return
+	}
+
+	// Build new rule_set array with only local filters (remove geosite-ru etc.)
+	newRuleSets := make([]interface{}, 0, len(filterRuleSets))
+	for _, rs := range filterRuleSets {
+		newRuleSets = append(newRuleSets, rs)
+	}
+	route["rule_set"] = newRuleSets
+
+	// Build new rules for blocked_only mode
+	// Order: sniff -> private -> blocked_sites_via_proxy -> final: direct
+	newRules := []interface{}{
+		// 1. Sniff for protocol detection
+		map[string]interface{}{
+			"action": "sniff",
+		},
+		// 2. Local domains direct
+		map[string]interface{}{
+			"domain_suffix": []string{".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private"},
+			"action":        "route",
+			"outbound":      "direct",
+		},
+		// 3. Hijack DNS
+		map[string]interface{}{
+			"protocol": "dns",
+			"action":   "hijack-dns",
+		},
+		// 4. Private IPs direct
+		map[string]interface{}{
+			"ip_is_private": true,
+			"action":        "route",
+			"outbound":      "direct",
+		},
+	}
+
+	// 5. Add rules for blocked domains/IPs through proxy
+	// Re:filter domains
+	newRules = append(newRules, map[string]interface{}{
+		"rule_set": []string{"refilter-domains"},
+		"action":   "route",
+		"outbound": "proxy",
+	})
+	
+	// Re:filter IPs  
+	newRules = append(newRules, map[string]interface{}{
+		"rule_set": []string{"refilter-ips"},
+		"action":   "route",
+		"outbound": "proxy",
+	})
+	
+	// Community blocked domains
+	newRules = append(newRules, map[string]interface{}{
+		"rule_set": []string{"community-domains"},
+		"action":   "route",
+		"outbound": "proxy",
+	})
+	
+	// Community blocked IPs
+	newRules = append(newRules, map[string]interface{}{
+		"rule_set": []string{"community-ips"},
+		"action":   "route",
+		"outbound": "proxy",
+	})
+	
+	// Discord IPs
+	newRules = append(newRules, map[string]interface{}{
+		"rule_set": []string{"discord-ips"},
+		"action":   "route",
+		"outbound": "proxy",
+	})
+
+	route["rules"] = newRules
+	
+	// Change final to direct (everything not blocked goes direct)
+	route["final"] = "direct"
+	
+	fmt.Printf("[applyRoutingMode] Applied blocked_only: %d rule_sets, %d rules, final=direct\n", 
+		len(newRuleSets), len(newRules))
+}
+
+// applyAllTrafficMode configures routing for all traffic through VPN.
+// Removes all direct rules for Russia, everything goes through proxy.
+func (b *ConfigBuilder) applyAllTrafficMode(route map[string]interface{}, existingRules, existingRuleSets []interface{}) {
+	fmt.Printf("[applyRoutingMode] Using all_traffic mode\n")
+
+	// Remove geosite/geoip rule_sets (not needed for all traffic mode)
+	route["rule_set"] = []interface{}{}
+
+	// Minimal rules: sniff, private, everything else proxy
+	newRules := []interface{}{
+		// 1. Sniff
+		map[string]interface{}{
+			"action": "sniff",
+		},
+		// 2. Local domains direct
+		map[string]interface{}{
+			"domain_suffix": []string{".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private"},
+			"action":        "route",
+			"outbound":      "direct",
+		},
+		// 3. Hijack DNS
+		map[string]interface{}{
+			"protocol": "dns",
+			"action":   "hijack-dns",
+		},
+		// 4. Private IPs direct
+		map[string]interface{}{
+			"ip_is_private": true,
+			"action":        "route",
+			"outbound":      "direct",
+		},
+	}
+
+	route["rules"] = newRules
+	route["final"] = "proxy"
+	
+	fmt.Printf("[applyRoutingMode] Applied all_traffic: minimal rules, final=proxy\n")
+}
+
+// applyExceptRussiaMode configures routing for all traffic except Russia through VPN.
+// Uses built-in domain list instead of remote geosite to avoid download issues.
+func (b *ConfigBuilder) applyExceptRussiaMode(route map[string]interface{}) {
+	fmt.Printf("[applyRoutingMode] Using except_russia mode with built-in domain list\n")
+
+	// No remote rule_sets needed
+	route["rule_set"] = []interface{}{}
+
+	// Russian domain suffixes for direct routing
+	ruDomainSuffixes := []string{
+		".ru", ".su", ".рф",
+		".yandex.com", ".yandex.net", ".yandex.ru", ".ya.ru", ".yandex.by", ".yandex.kz",
+		".vk.com", ".vkontakte.ru", ".vk.me", ".userapi.com",
+		".mail.ru", ".mailru.com", ".mycdn.me", ".imgsmail.ru",
+		".ok.ru", ".odnoklassniki.ru",
+		".sberbank.ru", ".sber.ru", ".tinkoff.ru", ".tinkoff.com", ".vtb.ru", ".alfabank.ru",
+		".raiffeisen.ru", ".gazprombank.ru", ".open.ru", ".rosbank.ru",
+		".gosuslugi.ru", ".mos.ru", ".nalog.ru", ".government.ru", ".kremlin.ru",
+		".duma.gov.ru", ".cbr.ru", ".pfrf.ru", ".fss.ru",
+		".ria.ru", ".rbc.ru", ".interfax.ru", ".tass.ru", ".kommersant.ru",
+		".lenta.ru", ".gazeta.ru", ".kp.ru", ".mk.ru", ".iz.ru", ".rt.com",
+		".ozon.ru", ".wildberries.ru", ".lamoda.ru", ".dns-shop.ru", ".mvideo.ru",
+		".eldorado.ru", ".citilink.ru", ".avito.ru", ".youla.ru",
+		".perekrestok.ru", ".magnit.ru", ".5ka.ru", ".dixy.ru", ".lenta.com",
+		".sbermarket.ru", ".delivery-club.ru",
+		".rzd.ru", ".aeroflot.ru", ".s7.ru", ".utair.ru", ".pobeda.aero",
+		".pochta.ru", ".cdek.ru", ".boxberry.ru", ".dpd.ru",
+		".mts.ru", ".megafon.ru", ".beeline.ru", ".tele2.ru",
+		".rostelecom.ru", ".rt.ru",
+		".vgtrk.ru", ".1tv.ru", ".ntv.ru", ".ren.tv", ".ctc.ru",
+		".rutube.ru", ".ivi.ru", ".okko.tv", ".more.tv", ".kinopoisk.ru",
+		".dzen.ru", ".zen.yandex.ru",
+		".2gis.ru", ".2gis.com",
+		".sports.ru", ".championat.com", ".sport-express.ru",
+		".hh.ru", ".superjob.ru", ".rabota.ru",
+		".cian.ru", ".domclick.ru",
+		".pikabu.ru", ".habr.com", ".vc.ru", ".dtf.ru",
+	}
+
+	ruDomainKeywords := []string{
+		"yandex", "sber", "tinkoff", "gosuslugi", "rutube",
+		"vkontakte", "mailru", "rambler", "wildberries", "ozon",
+	}
+
+	newRules := []interface{}{
+		map[string]interface{}{"action": "sniff"},
+		map[string]interface{}{
+			"domain_suffix": []string{".local", ".internal", ".corp", ".lan", ".home", ".intranet", ".private"},
+			"action":        "route",
+			"outbound":      "direct",
+		},
+		map[string]interface{}{
+			"protocol": "dns",
+			"action":   "hijack-dns",
+		},
+		map[string]interface{}{
+			"ip_is_private": true,
+			"action":        "route",
+			"outbound":      "direct",
+		},
+		map[string]interface{}{
+			"domain_suffix": ruDomainSuffixes,
+			"action":        "route",
+			"outbound":      "direct",
+		},
+		map[string]interface{}{
+			"domain_keyword": ruDomainKeywords,
+			"action":         "route",
+			"outbound":       "direct",
+		},
+	}
+
+	route["rules"] = newRules
+	route["final"] = "proxy"
+
+	fmt.Printf("[applyRoutingMode] Applied except_russia: %d domain suffixes, final=proxy\n", len(ruDomainSuffixes))
+}
+
+// cleanupDNSRuleSets removes DNS rules that reference remote rule_sets (geosite-*).
+func (b *ConfigBuilder) cleanupDNSRuleSets(template map[string]interface{}) {
+	dns, ok := template["dns"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	rules, ok := dns["rules"].([]interface{})
+	if !ok {
+		return
+	}
+
+	newRules := make([]interface{}, 0, len(rules))
+	for _, rule := range rules {
+		ruleMap, ok := rule.(map[string]interface{})
+		if !ok {
+			newRules = append(newRules, rule)
+			continue
+		}
+
+		if ruleSet, hasRuleSet := ruleMap["rule_set"]; hasRuleSet {
+			if ruleSetArr, ok := ruleSet.([]interface{}); ok {
+				hasGeosite := false
+				for _, rs := range ruleSetArr {
+					if rsStr, ok := rs.(string); ok {
+						if strings.HasPrefix(rsStr, "geosite-") || strings.HasPrefix(rsStr, "geoip-") {
+							hasGeosite = true
+							break
+						}
+					}
+				}
+				if hasGeosite {
+					fmt.Printf("[cleanupDNSRuleSets] Removed DNS rule with remote rule_set: %v\n", ruleSet)
+					continue
+				}
+			}
+		}
+
+		newRules = append(newRules, rule)
+	}
+
+	dns["rules"] = newRules
 }

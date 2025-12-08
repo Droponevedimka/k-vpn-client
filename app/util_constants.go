@@ -158,3 +158,23 @@ const (
 	// LangEnglish is English language.
 	LangEnglish Language = "en"
 )
+
+// RoutingMode defines how traffic is routed through VPN.
+type RoutingMode string
+
+const (
+	// RoutingModeBlockedOnly routes only blocked sites (РКН + community lists) through VPN.
+	// This is the default mode - minimal VPN usage, optimal performance.
+	RoutingModeBlockedOnly RoutingMode = "blocked_only"
+	
+	// RoutingModeExceptRussia routes all foreign traffic through VPN.
+	// Russian sites go direct, everything else through VPN.
+	RoutingModeExceptRussia RoutingMode = "except_russia"
+	
+	// RoutingModeAllTraffic routes all traffic through VPN.
+	// Maximum privacy, higher VPN load.
+	RoutingModeAllTraffic RoutingMode = "all_traffic"
+)
+
+// DefaultRoutingMode is the default routing mode.
+const DefaultRoutingMode = RoutingModeBlockedOnly

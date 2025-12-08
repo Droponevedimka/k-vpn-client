@@ -1114,6 +1114,31 @@ Endpoint = ..."></textarea>
             </div>
             
             <div class="settings-group">
+                <div class="settings-group-title">🛣️ Маршрутизация</div>
+                <div class="setting-item" style="flex-direction: column; align-items: stretch;">
+                    <div>
+                        <div class="label">Режим маршрутизации</div>
+                        <div class="desc">Какой трафик направлять через VPN</div>
+                    </div>
+                    <select id="settingRoutingMode" class="setting-select" style="margin-top: 8px;">
+                        <option value="blocked_only">🎯 Только заблокированные (рекомендуется)</option>
+                        <option value="except_russia">🌍 Всё кроме России</option>
+                        <option value="all_traffic">🔒 Весь трафик</option>
+                    </select>
+                    <div class="desc" style="margin-top: 4px; font-size: 10px;" id="routingModeDescription">
+                        Через VPN идут только заблокированные сайты (РКН + сервисы, блокирующие РФ). Минимальная нагрузка на VPN.
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Фильтры блокировок</div>
+                        <div class="desc" id="filtersInfo">Загрузка...</div>
+                    </div>
+                    <button class="modal-btn secondary" style="flex: 0; padding: 4px 10px; font-size: 10px;" onclick="updateFilters()" id="updateFiltersBtn">🔄 Обновить</button>
+                </div>
+            </div>
+            
+            <div class="settings-group">
                 <div class="settings-group-title">Конфигурация</div>
                 <div class="setting-item" style="flex-direction: column; align-items: stretch;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -2418,10 +2443,116 @@ Endpoint = ..."></textarea>
                         logLevelSelect.value = config.logLevel || 'warn';
                     }
                 }
+                
+                // Load routing mode
+                await loadRoutingMode();
+                
+                // Load filters info
+                await loadFiltersInfo();
+                
             } catch (e) {
                 console.error('Error loading settings:', e);
             }
             document.getElementById('settingsModal').classList.add('active');
+        }
+        
+        // Routing mode descriptions
+        const routingModeDescriptions = {
+            'blocked_only': 'Через VPN идут только заблокированные сайты (РКН + сервисы, блокирующие РФ). Минимальная нагрузка на VPN.',
+            'except_russia': 'Весь зарубежный трафик через VPN, российские сайты напрямую.',
+            'all_traffic': 'Весь трафик через VPN. Максимальная приватность, высокая нагрузка.'
+        };
+        
+        async function loadRoutingMode() {
+            try {
+                const result = await go.main.App.GetRoutingMode();
+                if (result.success) {
+                    const select = document.getElementById('settingRoutingMode');
+                    if (select) {
+                        select.value = result.mode;
+                        updateRoutingModeDescription(result.mode);
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading routing mode:', e);
+            }
+        }
+        
+        function updateRoutingModeDescription(mode) {
+            const desc = document.getElementById('routingModeDescription');
+            if (desc && routingModeDescriptions[mode]) {
+                desc.textContent = routingModeDescriptions[mode];
+            }
+        }
+        
+        // Add event listener for routing mode change
+        document.getElementById('settingRoutingMode')?.addEventListener('change', function() {
+            updateRoutingModeDescription(this.value);
+        });
+        
+        async function saveRoutingMode() {
+            const select = document.getElementById('settingRoutingMode');
+            if (!select) return;
+            
+            try {
+                const result = await go.main.App.SetRoutingMode(select.value);
+                if (result.success) {
+                    showToast('success', 'Режим маршрутизации изменён');
+                } else {
+                    showToast('error', result.error || 'Ошибка');
+                }
+            } catch (e) {
+                showToast('error', 'Ошибка: ' + e.message);
+            }
+        }
+        
+        async function loadFiltersInfo() {
+            try {
+                const result = await go.main.App.GetFiltersInfo();
+                const infoEl = document.getElementById('filtersInfo');
+                const btnEl = document.getElementById('updateFiltersBtn');
+                
+                if (result.success) {
+                    let info = `v${result.version} • ${result.filter_count} фильтров • ${result.total_size_kb} KB`;
+                    if (result.is_outdated) {
+                        info = `⚠️ ${info} (устарели)`;
+                        if (btnEl) btnEl.style.background = '#e74c3c';
+                    } else {
+                        info = `✓ ${info}`;
+                        if (btnEl) btnEl.style.background = '';
+                    }
+                    if (infoEl) infoEl.textContent = info;
+                } else {
+                    if (infoEl) infoEl.textContent = '⚠️ Фильтры не найдены';
+                }
+            } catch (e) {
+                console.error('Error loading filters info:', e);
+            }
+        }
+        
+        async function updateFilters() {
+            const btn = document.getElementById('updateFiltersBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '⏳ Обновление...';
+            }
+            
+            try {
+                const result = await go.main.App.UpdateFilters();
+                if (result.success) {
+                    showToast('success', result.message);
+                    await loadFiltersInfo();
+                } else {
+                    showToast('error', result.error || 'Ошибка обновления');
+                }
+            } catch (e) {
+                showToast('error', 'Ошибка: ' + e.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Обновить';
+                }
+            }
         }
 
         async function saveSettings() {
@@ -2434,6 +2565,16 @@ Endpoint = ..."></textarea>
                 const theme = document.getElementById('settingTheme').value;
                 const language = document.getElementById('settingLanguage').value;
                 const logLevel = document.getElementById('logLevelSelect')?.value || 'warn';
+                
+                // Save routing mode first (it rebuilds config)
+                const routingModeSelect = document.getElementById('settingRoutingMode');
+                if (routingModeSelect) {
+                    const routingResult = await go.main.App.SetRoutingMode(routingModeSelect.value);
+                    if (!routingResult.success) {
+                        showToast('error', routingResult.error || 'Ошибка сохранения режима маршрутизации');
+                        return;
+                    }
+                }
                 
                 const result = await go.main.App.SaveAppConfig(
                     autoStart, enableLogging, checkUpdates, notifications, autoUpdateSub, theme, language, logLevel, 24
